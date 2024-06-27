@@ -8,12 +8,14 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-type Client struct {
-	client *redis.Client
-	ctx    context.Context
-}
+type (
+	Client struct {
+		client *redis.Client
+		ctx    context.Context
+	}
 
-type Message = redis.Message
+	Message = redis.Message
+)
 
 func NewClient(addr, username, password string, db int) (*Client, error) {
 	rdb := redis.NewClient(&redis.Options{
