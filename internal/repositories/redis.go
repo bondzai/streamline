@@ -1,57 +1,28 @@
 package repositories
 
 import (
-	"context"
-	"log"
-
-	"github.com/go-redis/redis/v8"
+	"sse-server/pkg/redis"
 )
 
-type (
-	RedisRepository interface {
-		Publish(channel, message string) error
-		Subscribe(channel string) (<-chan *redis.Message, error)
-	}
+type RedisRepository interface {
+	Publish(channel, message string) error
+	Subscribe(channel string) (<-chan *redis.Message, error)
+}
 
-	redisRepository struct {
-		client *redis.Client
-		ctx    context.Context
-	}
-)
+type redisRepository struct {
+	client *redis.Client
+}
 
-func NewRedisRepository(addr, username, password string, db int) (RedisRepository, error) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Username: username,
-		Password: password,
-		DB:       db,
-	})
-
-	ctx := context.Background()
-
-	_, err := rdb.Ping(ctx).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	log.Println("connect to redis successfully.")
-
+func NewRedisRepository(client *redis.Client) RedisRepository {
 	return &redisRepository{
-		client: rdb,
-		ctx:    ctx,
-	}, nil
+		client: client,
+	}
 }
 
 func (r *redisRepository) Publish(channel, message string) error {
-	return r.client.Publish(r.ctx, channel, message).Err()
+	return r.client.Publish(channel, message)
 }
 
 func (r *redisRepository) Subscribe(channel string) (<-chan *redis.Message, error) {
-	pubsub := r.client.Subscribe(r.ctx, channel)
-	_, err := pubsub.Receive(r.ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return pubsub.Channel(), nil
+	return r.client.Subscribe(channel)
 }

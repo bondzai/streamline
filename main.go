@@ -5,16 +5,18 @@ import (
 	"sse-server/internal/handlers"
 	"sse-server/internal/repositories"
 	"sse-server/internal/usecases"
+	"sse-server/pkg/redis"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
-	redisRepo, err := repositories.NewRedisRepository("localhost:6379", "", "", 0)
+	redisClient, err := redis.NewClient("localhost:6379", "", "", 0)
 	if err != nil {
 		log.Println(err)
 	}
 
+	redisRepo := repositories.NewRedisRepository(redisClient)
 	eventUseCase := usecases.NewEventUseCase(redisRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
