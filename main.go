@@ -16,7 +16,7 @@ func main() {
 		log.Println(err)
 	}
 
-	redisRepo := repositories.NewRedisRepository(redisClient)
+	redisRepo := repositories.NewEventRepository(redisClient)
 	eventUseCase := usecases.NewEventUseCase(redisRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 

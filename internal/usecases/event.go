@@ -14,11 +14,11 @@ type (
 	}
 
 	eventUseCase struct {
-		eventRepo repositories.RedisRepository
+		eventRepo repositories.EventRepository
 	}
 )
 
-func NewEventUseCase(eventRepo repositories.RedisRepository) EventUseCase {
+func NewEventUseCase(eventRepo repositories.EventRepository) EventUseCase {
 	return &eventUseCase{eventRepo: eventRepo}
 }
 
