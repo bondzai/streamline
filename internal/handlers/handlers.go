@@ -14,8 +14,8 @@ import (
 
 type (
 	EventHandler interface {
-		PatchEvent(ctx *fiber.Ctx) error
-		StreamEvent(ctx *fiber.Ctx) error
+		PatchEvent(c *fiber.Ctx) error
+		StreamEvent(c *fiber.Ctx) error
 	}
 
 	evenHandler struct {
@@ -23,40 +23,40 @@ type (
 	}
 )
 
-func NewEventHandler() EventHandler {
-	return &evenHandler{}
+func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
+	return &evenHandler{eventUseCase: eventUseCase}
 }
 
-func (c evenHandler) PatchEvent(ctx *fiber.Ctx) error {
-	customerId := ctx.Params("id")
+func (h evenHandler) PatchEvent(c *fiber.Ctx) error {
+	customerId := c.Params("id")
 	var request entities.Event
 
-	if err := ctx.BodyParser(&request); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Can not parse request.")
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Can not parse request.")
 	}
 
-	if err := c.eventUseCase.PublishEvent(customerId, *request.LoginSession); err != nil {
-		return ctx.Status(fiber.StatusInternalServerError).SendString("Can not parse request.")
+	if err := h.eventUseCase.PublishEvent(customerId, *request.LoginSession); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Can not parse request.")
 	}
 
-	return ctx.SendStatus(fiber.StatusNoContent)
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (c evenHandler) StreamEvent(ctx *fiber.Ctx) error {
-	customerId := ctx.Params("id")
+func (h evenHandler) StreamEvent(c *fiber.Ctx) error {
+	customerId := c.Params("id")
 
-	ctx.Set("Content-Type", "text/event-stream")
-	ctx.Set("Cache-Control", "no-cache")
-	ctx.Set("Connection", "keep-alive")
-	ctx.Set("Transfer-Encoding", "chunked")
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+	c.Set("Transfer-Encoding", "chunked")
 
-	ctx.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		ctx, cancel := context.WithCancel(context.Background())
+	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
+		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		events := make(chan entities.Event)
 
-		c.eventUseCase.StreamEventById(ctx, customerId, events)
+		h.eventUseCase.StreamEventById(c, customerId, events)
 
 		for event := range events {
 			eventData, err := json.Marshal(event)
