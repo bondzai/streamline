@@ -5,7 +5,7 @@ import (
 )
 
 type EventRepository interface {
-	Publish(channel, message string) error
+	Publish(channel string, message interface{}) error
 	Subscribe(channel string) (<-chan *redis.Message, error)
 }
 
@@ -19,7 +19,7 @@ func NewEventRepository(client *redis.Client) EventRepository {
 	}
 }
 
-func (r *eventRepository) Publish(channel, message string) error {
+func (r *eventRepository) Publish(channel string, message interface{}) error {
 	return r.client.Publish(channel, message)
 }
 

@@ -30,12 +30,11 @@ func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
 func (h evenHandler) PatchEvent(c *fiber.Ctx) error {
 	customerId := c.Params("id")
 	var request entities.Event
-
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Can not parse request.")
 	}
 
-	if err := h.eventUseCase.PublishEvent(customerId, *request.LoginSession); err != nil {
+	if err := h.eventUseCase.PublishEvent(customerId, request); err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Can not parse request.")
 	}
 
