@@ -25,7 +25,12 @@ func NewEventUseCase(eventRepo repositories.EventRepository) EventUseCase {
 }
 
 func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
-	err := u.eventRepo.Publish(channel, message)
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	err = u.eventRepo.Publish(channel, jsonMessage)
 	if err != nil {
 		log.Println("Publish event error: ", err)
 		return err

@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"encoding/json"
 	"sse-server/pkg/redis"
 )
 
@@ -21,12 +20,7 @@ func NewEventRepository(client redis.Client) EventRepository {
 }
 
 func (r *eventRepository) Publish(channel string, message interface{}) error {
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		return err
-	}
-
-	return r.client.Publish(channel, jsonMessage)
+	return r.client.Publish(channel, message)
 }
 
 func (r *eventRepository) Subscribe(channel string) (<-chan *redis.Message, error) {
