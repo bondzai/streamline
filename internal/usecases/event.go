@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sse-server/internal/entities"
 	"sse-server/internal/repositories"
@@ -24,7 +25,13 @@ func NewEventUseCase(eventRepo repositories.EventRepository) EventUseCase {
 }
 
 func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
-	return u.eventRepo.Publish(channel, message)
+	err := u.eventRepo.Publish(channel, message)
+	if err != nil {
+		log.Println("Publish event error: ", err)
+		return err
+	}
+
+	return nil
 }
 
 func (u *eventUseCase) SubscribeEvent(channel string) (<-chan *redis.Message, error) {
@@ -66,11 +73,15 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 				}
 
 				log.Printf("Received message from channel %s: %s", channel, msg.Payload)
-				events <- entities.Event{
-					Id:           channel,
-					LoginSession: &msg.Payload,
-					DeviceId:     &msg.Payload,
+
+				var event entities.Event
+				if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+					log.Printf("Error unmarshaling message from Redis: %v", err)
+					continue
 				}
+
+				event.Id = channel
+				events <- event
 			}
 		}
 	}()
