@@ -5,21 +5,21 @@ import (
 )
 
 type EventRepository interface {
-	Publish(channel, message string) error
+	Publish(channel string, message interface{}) error
 	Subscribe(channel string) (<-chan *redis.Message, error)
 }
 
 type eventRepository struct {
-	client *redis.Client
+	client redis.Client
 }
 
-func NewEventRepository(client *redis.Client) EventRepository {
+func NewEventRepository(client redis.Client) EventRepository {
 	return &eventRepository{
 		client: client,
 	}
 }
 
-func (r *eventRepository) Publish(channel, message string) error {
+func (r *eventRepository) Publish(channel string, message interface{}) error {
 	return r.client.Publish(channel, message)
 }
 

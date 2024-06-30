@@ -2,15 +2,17 @@ package usecases
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sse-server/internal/entities"
 	"sse-server/internal/repositories"
+	"sse-server/pkg/redis"
 )
 
 type (
 	EventUseCase interface {
-		PublishEvent(eventId, data string) error
-		StreamEventById(ctx context.Context, eventId string, events chan<- entities.Event)
+		PublishEvent(channel string, message interface{}) error
+		StreamEventById(ctx context.Context, channel string, events chan<- entities.Event)
 	}
 
 	eventUseCase struct {
@@ -22,14 +24,35 @@ func NewEventUseCase(eventRepo repositories.EventRepository) EventUseCase {
 	return &eventUseCase{eventRepo: eventRepo}
 }
 
-func (u *eventUseCase) PublishEvent(eventId, data string) error {
-	return u.eventRepo.Publish(eventId, data)
+func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Json marshal error: ", err)
+		return err
+	}
+
+	err = u.eventRepo.Publish(channel, jsonMessage)
+	if err != nil {
+		log.Println("Publish event error: ", err)
+		return err
+	}
+
+	return nil
 }
 
-func (u *eventUseCase) StreamEventById(ctx context.Context, eventId string, events chan<- entities.Event) {
-	msgCh, err := u.eventRepo.Subscribe(eventId)
+func (u *eventUseCase) SubscribeEvent(channel string) (<-chan *redis.Message, error) {
+	messageChannel, err := u.eventRepo.Subscribe(channel)
 	if err != nil {
-		log.Printf("Error subscribing to Redis: %v\n", err)
+		log.Println("Subscribe event error: ", err)
+		return nil, err
+	}
+
+	return messageChannel, nil
+}
+
+func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, events chan<- entities.Event) {
+	messageChannel, err := u.SubscribeEvent(channel)
+	if err != nil {
 		close(events)
 		return
 	}
@@ -37,28 +60,28 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, eventId string, even
 	go func() {
 		defer close(events)
 
-		events <- entities.Event{
-			Id:           eventId,
-			LoginSession: nil,
-		}
+		var event entities.Event
+		events <- event
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Stopped receiving messages from Redis.", eventId)
+				log.Println("Stopped receiving messages from Redis.", channel)
 				return
 
-			case msg, ok := <-msgCh:
+			case msg, ok := <-messageChannel:
 				if !ok {
-					log.Println("Redis message channel closed.", eventId)
+					log.Println("Redis message channel closed.", channel)
 					return
 				}
 
-				log.Printf("Received message from channel %s: %s", eventId, msg.Payload)
-				events <- entities.Event{
-					Id:           eventId,
-					LoginSession: &msg.Payload,
+				if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+					log.Printf("Error unmarshaling message from Redis: %v", err)
+					continue
 				}
+
+				event.Id = channel
+				events <- event
 			}
 		}
 	}()

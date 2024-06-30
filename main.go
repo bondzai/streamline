@@ -20,18 +20,17 @@ func init() {
 }
 
 func main() {
-	redisClient, err := redis.NewClient(
-		viper.GetString("redis.host"),
-		viper.GetString("redis.user"),
-		viper.GetString("redis.pass"),
-		viper.GetInt("redis.db"),
-	)
+	redisClient, err := redis.NewClient(redis.Config{
+		Address:  viper.GetString("redis.host"),
+		Password: viper.GetString("redis.pass"),
+		DB:       viper.GetInt("redis.db"),
+	})
 	if err != nil {
-		log.Println(err)
+		log.Fatalf("Failed to setup Redis: %v", err)
 	}
 
-	redisRepo := repositories.NewEventRepository(redisClient)
-	eventUseCase := usecases.NewEventUseCase(redisRepo)
+	eventRepo := repositories.NewEventRepository(redisClient)
+	eventUseCase := usecases.NewEventUseCase(eventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
 	app := fiber.New()
@@ -39,5 +38,7 @@ func main() {
 	app.Get("/api/v1/event/:id", eventHandler.StreamEvent)
 	app.Patch("/api/v1/event/:id", eventHandler.PatchEvent)
 
-	app.Listen(":" + viper.GetString("app.port"))
+	if err := app.Listen(":" + viper.GetString("app.port")); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
