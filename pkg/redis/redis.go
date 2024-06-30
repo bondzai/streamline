@@ -1,4 +1,3 @@
-// redis/redis.go
 package redis
 
 import (
@@ -15,6 +14,13 @@ type (
 	}
 
 	Message = redis.Message
+
+	Config struct {
+		Addr     string
+		Username string
+		Password string
+		Database uint8
+	}
 )
 
 func NewClient(addr, username, password string, db int) (*Client, error) {
@@ -40,7 +46,7 @@ func NewClient(addr, username, password string, db int) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Publish(channel, message string) error {
+func (c *Client) Publish(channel string, message interface{}) error {
 	return c.client.Publish(c.ctx, channel, message).Err()
 }
 
