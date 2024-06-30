@@ -67,8 +67,9 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 
 				log.Printf("Received message from channel %s: %s", channel, msg.Payload)
 				events <- entities.Event{
-					Id:       channel,
-					DeviceId: &msg.Payload,
+					Id:           channel,
+					LoginSession: &msg.Payload,
+					DeviceId:     &msg.Payload,
 				}
 			}
 		}
