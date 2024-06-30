@@ -59,11 +59,8 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 	go func() {
 		defer close(events)
 
-		events <- entities.Event{
-			Id:           channel,
-			LoginSession: nil,
-			DeviceId:     nil,
-		}
+		var event entities.Event
+		events <- event
 
 		for {
 			select {
@@ -79,7 +76,6 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 
 				log.Printf("Received message from channel %s: %s", channel, msg.Payload)
 
-				var event entities.Event
 				if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
 					log.Printf("Error unmarshaling message from Redis: %v", err)
 					continue
