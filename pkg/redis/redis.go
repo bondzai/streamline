@@ -16,19 +16,19 @@ type (
 	Message = redis.Message
 
 	Config struct {
-		Addr     string
+		Address  string
 		Username string
 		Password string
 		DB       int
 	}
 )
 
-func NewClient(addr, username, password string, db int) (*Client, error) {
+func NewClient(config Config) (*Client, error) {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Username: username,
-		Password: password,
-		DB:       db,
+		Addr:     config.Address,
+		Username: config.Username,
+		Password: config.Password,
+		DB:       config.DB,
 	})
 
 	ctx := context.Background()
@@ -38,7 +38,7 @@ func NewClient(addr, username, password string, db int) (*Client, error) {
 		return nil, err
 	}
 
-	log.Println("connect to redis successfully.")
+	log.Println("Connect to redis successfully.")
 
 	return &Client{
 		client: rdb,
