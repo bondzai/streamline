@@ -34,7 +34,7 @@ func (h evenHandler) PatchEvent(c *fiber.Ctx) error {
 	}
 
 	if err := h.eventUseCase.PublishEvent(c.Params("id"), request); err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Can not parse request.")
+		return c.Status(fiber.StatusInternalServerError).SendString("Unexpected error")
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
