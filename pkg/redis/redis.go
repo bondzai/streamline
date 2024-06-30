@@ -19,7 +19,7 @@ type (
 		Addr     string
 		Username string
 		Password string
-		Database uint8
+		DB       int
 	}
 )
 
