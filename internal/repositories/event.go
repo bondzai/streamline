@@ -10,10 +10,10 @@ type EventRepository interface {
 }
 
 type eventRepository struct {
-	client *redis.Client
+	client redis.Client
 }
 
-func NewEventRepository(client *redis.Client) EventRepository {
+func NewEventRepository(client redis.Client) EventRepository {
 	return &eventRepository{
 		client: client,
 	}

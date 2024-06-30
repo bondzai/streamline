@@ -8,7 +8,12 @@ import (
 )
 
 type (
-	Client struct {
+	Client interface {
+		Publish(channel string, message interface{}) error
+		Subscribe(channel string) (<-chan *redis.Message, error)
+	}
+
+	client struct {
 		client *redis.Client
 		ctx    context.Context
 	}
@@ -23,7 +28,7 @@ type (
 	}
 )
 
-func NewClient(config Config) (*Client, error) {
+func NewClient(config Config) (Client, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     config.Address,
 		Username: config.Username,
@@ -40,17 +45,17 @@ func NewClient(config Config) (*Client, error) {
 
 	log.Println("Connect to redis successfully.")
 
-	return &Client{
+	return &client{
 		client: rdb,
 		ctx:    ctx,
 	}, nil
 }
 
-func (c *Client) Publish(channel string, message interface{}) error {
+func (c *client) Publish(channel string, message interface{}) error {
 	return c.client.Publish(c.ctx, channel, message).Err()
 }
 
-func (c *Client) Subscribe(channel string) (<-chan *redis.Message, error) {
+func (c *client) Subscribe(channel string) (<-chan *redis.Message, error) {
 	pubsub := c.client.Subscribe(c.ctx, channel)
 	_, err := pubsub.Receive(c.ctx)
 	if err != nil {
