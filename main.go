@@ -26,7 +26,7 @@ func main() {
 		DB:       viper.GetInt("redis.db"),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Fatalf("Failed to setup Redis: %v", err)
 	}
 
 	eventRepo := repositories.NewEventRepository(redisClient)
@@ -38,5 +38,7 @@ func main() {
 	app.Get("/api/v1/event/:id", eventHandler.StreamEvent)
 	app.Patch("/api/v1/event/:id", eventHandler.PatchEvent)
 
-	app.Listen(":" + viper.GetString("app.port"))
+	if err := app.Listen(":" + viper.GetString("app.port")); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
