@@ -4,14 +4,16 @@ import (
 	"sse-server/pkg/redis"
 )
 
-type EventRepository interface {
-	Publish(channel string, message interface{}) error
-	Subscribe(channel string) (<-chan *redis.Message, error)
-}
+type (
+	EventRepository interface {
+		Publish(channel string, message interface{}) error
+		Subscribe(channel string) (<-chan *redis.Message, error)
+	}
 
-type eventRepository struct {
-	client redis.Client
-}
+	eventRepository struct {
+		client redis.Client
+	}
+)
 
 func NewEventRepository(client redis.Client) EventRepository {
 	return &eventRepository{

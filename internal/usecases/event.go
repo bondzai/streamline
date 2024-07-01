@@ -3,7 +3,9 @@ package usecases
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"runtime"
 	"sse-server/internal/entities"
 	"sse-server/internal/repositories"
 	"sse-server/pkg/redis"
@@ -56,6 +58,10 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 		close(events)
 		return
 	}
+
+	// Get the number of running Goroutines
+	numGoroutines := runtime.NumGoroutine()
+	fmt.Printf("Number of Running Goroutines: %d\n", numGoroutines)
 
 	go func() {
 		defer close(events)
