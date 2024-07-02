@@ -9,7 +9,6 @@ import (
 	"sse-server/pkg/redis"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/spf13/viper"
 )
 
 func init() {
@@ -21,9 +20,9 @@ func init() {
 
 func main() {
 	redisClient, err := redis.NewClient(redis.Config{
-		Address:  viper.GetString("redis.host"),
-		Password: viper.GetString("redis.pass"),
-		DB:       viper.GetInt("redis.db"),
+		Address:  config.AppConfig.RedisURL,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisDatabase,
 	})
 	if err != nil {
 		log.Fatalf("Failed to setup Redis: %v", err)
@@ -38,7 +37,7 @@ func main() {
 	app.Get("/api/v1/event/:id", eventHandler.StreamEvent)
 	app.Patch("/api/v1/event/:id", eventHandler.PatchEvent)
 
-	if err := app.Listen(":" + viper.GetString("app.port")); err != nil {
+	if err := app.Listen(":" + config.AppConfig.AppPort); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
