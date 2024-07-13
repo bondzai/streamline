@@ -33,7 +33,7 @@ func main() {
 		Brokers: []string{"localhost:9092"},
 	})
 	if err != nil {
-		log.Fatalf("Failed to setup Kafka producer: %v", err)
+		log.Fatalf("Failed to setup Kafka client: %v", err)
 	}
 
 	msgChan, err := kafkaClient.Subscribe([]string{"myTopic"})
