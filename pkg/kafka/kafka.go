@@ -27,17 +27,20 @@ type (
 	}
 
 	Config struct {
-		Brokers []string
+		Brokers  []string
+		Username string
+		Password string
+		UseTLS   bool
 	}
 )
 
 func NewClient(config Config) (Client, error) {
-	producer, err := newProducer(config.Brokers)
+	producer, err := newProducer(config)
 	if err != nil {
 		return nil, err
 	}
 
-	consumer, err := newConsumer(config.Brokers)
+	consumer, err := newConsumer(config)
 	if err != nil {
 		return nil, err
 	}
@@ -51,18 +54,43 @@ func NewClient(config Config) (Client, error) {
 	}, nil
 }
 
-func newProducer(brokers []string) (sarama.SyncProducer, error) {
-	config := sarama.NewConfig()
-	config.Producer.Return.Successes = true
-	producer, err := sarama.NewSyncProducer(brokers, config)
+func newProducer(config Config) (sarama.SyncProducer, error) {
+	kafkaConfig := sarama.NewConfig()
+	kafkaConfig.Producer.Return.Successes = true
+
+	if config.Username != "" && config.Password != "" {
+		kafkaConfig.Net.SASL.Enable = true
+		kafkaConfig.Net.SASL.User = config.Username
+		kafkaConfig.Net.SASL.Password = config.Password
+		kafkaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+	}
+
+	if config.UseTLS {
+		kafkaConfig.Net.TLS.Enable = true
+	}
+
+	producer, err := sarama.NewSyncProducer(config.Brokers, kafkaConfig)
 	if err != nil {
 		return nil, err
 	}
 	return producer, nil
 }
 
-func newConsumer(brokers []string) (sarama.Consumer, error) {
-	consumer, err := sarama.NewConsumer(brokers, nil)
+func newConsumer(config Config) (sarama.Consumer, error) {
+	kafkaConfig := sarama.NewConfig()
+
+	if config.Username != "" && config.Password != "" {
+		kafkaConfig.Net.SASL.Enable = true
+		kafkaConfig.Net.SASL.User = config.Username
+		kafkaConfig.Net.SASL.Password = config.Password
+		kafkaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+	}
+
+	if config.UseTLS {
+		kafkaConfig.Net.TLS.Enable = true
+	}
+
+	consumer, err := sarama.NewConsumer(config.Brokers, kafkaConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -70,18 +98,9 @@ func newConsumer(brokers []string) (sarama.Consumer, error) {
 }
 
 func (r *client) IsConnected() bool {
-	// Check if the producer is nil
-	if r.producer == nil {
+	if r.producer == nil || r.consumer == nil {
 		return false
 	}
-
-	// Check if the consumer is nil
-	if r.consumer == nil {
-		return false
-	}
-
-	// Optionally, you could send a ping message to check the connection.
-	// For simplicity, we assume if producer and consumer are not nil, the connection is established.
 	return true
 }
 
@@ -104,7 +123,6 @@ func (r *client) Publish(topic string, message interface{}) error {
 }
 
 func (r *client) Subscribe(topics []string) (<-chan *sarama.ConsumerMessage, error) {
-	// Create a channel to receive messages
 	messages := make(chan *sarama.ConsumerMessage)
 
 	for _, topic := range topics {
