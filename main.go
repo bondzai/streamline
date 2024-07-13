@@ -6,6 +6,7 @@ import (
 	"sse-server/internal/handlers"
 	"sse-server/internal/repositories"
 	"sse-server/internal/usecases"
+	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
 
 	"github.com/gofiber/fiber/v2"
@@ -27,6 +28,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to setup Redis: %v", err)
 	}
+
+	kafkaClient, err := kafka.NewClient(kafka.Config{
+		Brokers: []string{"localhost:9092"},
+	})
+	if err != nil {
+		log.Fatalf("Failed to setup Kafka producer: %v", err)
+	}
+
+	msgChan, err := kafkaClient.Subscribe([]string{"myTopic"})
+	if err != nil {
+		log.Fatalf("Failed to subscribe to topic: %v", err)
+	}
+
+	go func() {
+		for msg := range msgChan {
+			log.Printf("Received message: %s", string(msg.Value))
+		}
+	}()
+
+	kafkaClient.IsConnected()
+	kafkaClient.Publish("myTopic", "myMessage")
 
 	eventRepo := repositories.NewEventRepository(redisClient)
 	eventUseCase := usecases.NewEventUseCase(eventRepo)
