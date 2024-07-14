@@ -9,11 +9,12 @@ import (
 var AppConfig Config
 
 type Config struct {
+	AppPort       string
 	RedisURL      string
 	RedisUser     string
 	RedisPassword string
 	RedisDatabase int
-	AppPort       string
+	KafkaUrl      string
 }
 
 func LoadConfig() error {
@@ -28,11 +29,12 @@ func LoadConfig() error {
 	}
 
 	AppConfig = Config{
+		AppPort:       viper.GetString("app.port"),
 		RedisURL:      viper.GetString("redis.host"),
 		RedisUser:     viper.GetString("redis.user"),
 		RedisPassword: viper.GetString("redis.pass"),
 		RedisDatabase: viper.GetInt("redis.db"),
-		AppPort:       viper.GetString("app.port"),
+		KafkaUrl:      viper.GetString("kafka.url"),
 	}
 
 	return nil
