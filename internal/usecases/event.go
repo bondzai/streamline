@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sse-server/internal/entities"
 	"sse-server/internal/repositories"
+	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
 )
 
@@ -18,12 +19,16 @@ type (
 	}
 
 	eventUseCase struct {
-		eventRepo repositories.EventRepository
+		eventRepo      repositories.EventRepository
+		kafkaEventRepo repositories.KafkaEventRepository
 	}
 )
 
-func NewEventUseCase(eventRepo repositories.EventRepository) EventUseCase {
-	return &eventUseCase{eventRepo: eventRepo}
+func NewEventUseCase(eventRepo repositories.EventRepository, kafkaEventRepo repositories.KafkaEventRepository) EventUseCase {
+	return &eventUseCase{
+		eventRepo:      eventRepo,
+		kafkaEventRepo: kafkaEventRepo,
+	}
 }
 
 func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
@@ -39,21 +44,42 @@ func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
 		return err
 	}
 
+	err = u.kafkaEventRepo.Publish(channel, message)
+	if err != nil {
+		log.Println("Publish event to kafka error: ", err)
+	}
+
 	return nil
 }
 
-func (u *eventUseCase) SubscribeEvent(channel string) (<-chan *redis.Message, error) {
+func (u *eventUseCase) subscribeRedisEvent(channel string) (<-chan *redis.Message, error) {
 	messageChannel, err := u.eventRepo.Subscribe(channel)
 	if err != nil {
-		log.Println("Subscribe event error: ", err)
+		log.Println("Subscribe redis event error: ", err)
 		return nil, err
 	}
 
 	return messageChannel, nil
 }
 
+func (u *eventUseCase) subscribeKafkaEvent(topic []string) (<-chan *kafka.Message, error) {
+	messageTopic, err := u.kafkaEventRepo.Subscribe(topic)
+	if err != nil {
+		log.Println("Subscribe kafka event error: ", err)
+		return nil, err
+	}
+
+	return messageTopic, nil
+}
+
 func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, events chan<- entities.Event) {
-	messageChannel, err := u.SubscribeEvent(channel)
+	messageChannel, err := u.subscribeRedisEvent(channel)
+	if err != nil {
+		close(events)
+		return
+	}
+
+	messageTopic, err := u.subscribeKafkaEvent([]string{channel})
 	if err != nil {
 		close(events)
 		return
@@ -85,6 +111,21 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 					log.Printf("Error unmarshaling message from Redis: %v", err)
 					continue
 				}
+
+				event.Id = channel
+				events <- event
+
+			case msgKafka, ok := <-messageTopic:
+				if !ok {
+					return
+				}
+
+				if err := json.Unmarshal(msgKafka.Value, &event); err != nil {
+					log.Printf("Error unmarshaling message from Kafka: %v", err)
+					continue
+				}
+
+				log.Printf("Kafka received messages: %s", string(msgKafka.Value))
 
 				event.Id = channel
 				events <- event
