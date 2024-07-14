@@ -17,13 +17,23 @@ type (
 	Client interface {
 		IsConnected() bool
 		Publish(topic string, message interface{}) error
-		Subscribe(topics []string) (<-chan *sarama.ConsumerMessage, error)
+		Subscribe(topics []string) (<-chan *Message, error)
 	}
 
 	client struct {
 		producer sarama.SyncProducer
 		consumer sarama.Consumer
 		brokers  []string
+	}
+
+	// Message struct is a coppy of <-chan *sarama.ConsumerMessage
+	Message struct {
+		Topic     string
+		Partition int32
+		Offset    int64
+		Key       []byte
+		Value     []byte
+		Timestamp time.Time
 	}
 
 	Config struct {
@@ -122,8 +132,8 @@ func (r *client) Publish(topic string, message interface{}) error {
 	return err
 }
 
-func (r *client) Subscribe(topics []string) (<-chan *sarama.ConsumerMessage, error) {
-	messages := make(chan *sarama.ConsumerMessage)
+func (r *client) Subscribe(topics []string) (<-chan *Message, error) {
+	messages := make(chan *Message)
 
 	for _, topic := range topics {
 		partitions, err := r.consumer.Partitions(topic)
@@ -138,8 +148,15 @@ func (r *client) Subscribe(topics []string) (<-chan *sarama.ConsumerMessage, err
 			}
 
 			go func(pc sarama.PartitionConsumer) {
-				for message := range pc.Messages() {
-					messages <- message
+				for msg := range pc.Messages() {
+					messages <- &Message{
+						Topic:     msg.Topic,
+						Partition: msg.Partition,
+						Offset:    msg.Offset,
+						Key:       msg.Key,
+						Value:     msg.Value,
+						Timestamp: msg.Timestamp,
+					}
 				}
 			}(pc)
 		}
