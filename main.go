@@ -36,22 +36,9 @@ func main() {
 		log.Fatalf("Failed to setup Kafka client: %v", err)
 	}
 
-	msgChan, err := kafkaClient.Subscribe([]string{"myTopic"})
-	if err != nil {
-		log.Fatalf("Failed to subscribe to topic: %v", err)
-	}
-
-	go func() {
-		for msg := range msgChan {
-			log.Printf("Received message: %s", string(msg.Value))
-		}
-	}()
-
-	kafkaClient.IsConnected()
-	kafkaClient.Publish("myTopic", "myMessage")
-
+	kafkaEventRepo := repositories.KafkaEventRepository(kafkaClient)
 	eventRepo := repositories.NewEventRepository(redisClient)
-	eventUseCase := usecases.NewEventUseCase(eventRepo)
+	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
 	app := fiber.New()
