@@ -2,15 +2,12 @@ package main
 
 import (
 	"log"
-	"os"
-	"os/signal"
 	"sse-server/config"
 	"sse-server/internal/handlers"
 	"sse-server/internal/repositories"
 	"sse-server/internal/usecases"
 	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
-	"syscall"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -64,11 +61,6 @@ func main() {
 	event := v1.Group("event")
 	event.Get("/:id", eventHandler.StreamEvent)
 	event.Patch("/:id", eventHandler.PatchEvent)
-
-	// Graceful shutdown
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-	<-sigterm
 
 	log.Println("Shutting down...")
 
