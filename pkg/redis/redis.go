@@ -23,14 +23,20 @@ type (
 		Remove(keys ...string) error
 
 		Publish(channel string, message interface{}) error
-		Subscribe(channel string) (<-chan *redis.Message, error)
+		Subscribe(channel string) (<-chan *Message, error)
 	}
 
 	client struct {
 		client *redis.Client
 	}
 
-	Message = redis.Message
+	Message struct {
+		Channel      string
+		Pattern      string
+		Payload      string
+		PayloadSlice []string
+		Timestamp    time.Time
+	}
 
 	Config struct {
 		Address  string
@@ -83,7 +89,7 @@ func (r *client) Publish(channel string, message interface{}) error {
 	return r.client.Publish(ctx, channel, message).Err()
 }
 
-func (r *client) Subscribe(channel string) (<-chan *redis.Message, error) {
+func (r *client) Subscribe(channel string) (<-chan *Message, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout*time.Second)
 	defer cancel()
 
@@ -93,7 +99,21 @@ func (r *client) Subscribe(channel string) (<-chan *redis.Message, error) {
 		return nil, err
 	}
 
-	return pubsub.Channel(), nil
+	ch := make(chan *Message)
+	go func() {
+		for msg := range pubsub.Channel() {
+			ch <- &Message{
+				Channel:      msg.Channel,
+				Pattern:      msg.Pattern,
+				Payload:      msg.Payload,
+				PayloadSlice: msg.PayloadSlice,
+				Timestamp:    time.Now(),
+			}
+		}
+		close(ch)
+	}()
+
+	return ch, nil
 }
 
 func (r *client) Get(key string, value interface{}) error {
