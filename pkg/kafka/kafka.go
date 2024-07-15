@@ -10,23 +10,25 @@ import (
 )
 
 const (
-	Timeout = 1
+	OffsetFromLatest   = iota // Start from the latest offset processed
+	OffsetFromEarliest        // Start from the beginning (oldest) offset
+	Timeout            = 1
 )
 
 type (
 	Client interface {
 		IsConnected() bool
 		Publish(topic string, message interface{}) error
-		Subscribe(topics []string) (<-chan *Message, error)
+		Subscribe(topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error)
+		Close() error
 	}
 
 	client struct {
-		producer sarama.SyncProducer
-		consumer sarama.Consumer
-		brokers  []string
+		producer      sarama.SyncProducer
+		consumerGroup sarama.ConsumerGroup
+		brokers       []string
 	}
 
-	// Message struct is a coppy of <-chan *sarama.ConsumerMessage
 	Message struct {
 		Topic     string
 		Partition int32
@@ -50,16 +52,10 @@ func NewClient(config Config) (Client, error) {
 		return nil, err
 	}
 
-	consumer, err := newConsumer(config)
-	if err != nil {
-		return nil, err
-	}
-
 	log.Println("Connected to Kafka successfully.")
 
 	return &client{
 		producer: producer,
-		consumer: consumer,
 		brokers:  config.Brokers,
 	}, nil
 }
@@ -86,8 +82,16 @@ func newProducer(config Config) (sarama.SyncProducer, error) {
 	return producer, nil
 }
 
-func newConsumer(config Config) (sarama.Consumer, error) {
+func newConsumerGroup(config Config, group string, offsetOption int) (sarama.ConsumerGroup, error) {
 	kafkaConfig := sarama.NewConfig()
+	kafkaConfig.Consumer.Return.Errors = true
+
+	switch offsetOption {
+	case OffsetFromLatest:
+		kafkaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	case OffsetFromEarliest:
+		kafkaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+	}
 
 	if config.Username != "" && config.Password != "" {
 		kafkaConfig.Net.SASL.Enable = true
@@ -100,18 +104,15 @@ func newConsumer(config Config) (sarama.Consumer, error) {
 		kafkaConfig.Net.TLS.Enable = true
 	}
 
-	consumer, err := sarama.NewConsumer(config.Brokers, kafkaConfig)
+	consumerGroup, err := sarama.NewConsumerGroup(config.Brokers, group, kafkaConfig)
 	if err != nil {
 		return nil, err
 	}
-	return consumer, nil
+	return consumerGroup, nil
 }
 
 func (r *client) IsConnected() bool {
-	if r.producer == nil || r.consumer == nil {
-		return false
-	}
-	return true
+	return r.producer != nil
 }
 
 func (r *client) Publish(topic string, message interface{}) error {
@@ -132,35 +133,72 @@ func (r *client) Publish(topic string, message interface{}) error {
 	return err
 }
 
-func (r *client) Subscribe(topics []string) (<-chan *Message, error) {
+func (r *client) Subscribe(topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
 	messages := make(chan *Message)
+	ctx := context.Background()
 
-	for _, topic := range topics {
-		partitions, err := r.consumer.Partitions(topic)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, partition := range partitions {
-			pc, err := r.consumer.ConsumePartition(topic, partition, sarama.OffsetNewest)
-			if err != nil {
-				return nil, err
-			}
-
-			go func(pc sarama.PartitionConsumer) {
-				for msg := range pc.Messages() {
-					messages <- &Message{
-						Topic:     msg.Topic,
-						Partition: msg.Partition,
-						Offset:    msg.Offset,
-						Key:       msg.Key,
-						Value:     msg.Value,
-						Timestamp: msg.Timestamp,
-					}
-				}
-			}(pc)
-		}
+	consumerGroupClient, err := newConsumerGroup(Config{Brokers: r.brokers}, consumerGroup, offsetOption)
+	if err != nil {
+		return nil, err
 	}
 
+	consumer := &consumerGroupHandler{
+		messages:     messages,
+		offsetOption: offsetOption,
+	}
+
+	go func() {
+		for {
+			if err := consumerGroupClient.Consume(ctx, topics, consumer); err != nil {
+				log.Printf("Error from consumer: %v", err)
+			}
+			if ctx.Err() != nil {
+				return
+			}
+		}
+	}()
+
+	r.consumerGroup = consumerGroupClient
+
 	return messages, nil
+}
+
+func (r *client) Close() error {
+	if err := r.producer.Close(); err != nil {
+		return err
+	}
+	if r.consumerGroup != nil {
+		if err := r.consumerGroup.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type consumerGroupHandler struct {
+	messages     chan<- *Message
+	offsetOption int
+}
+
+func (h *consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+func (h *consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+func (h *consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for msg := range claim.Messages() {
+		h.messages <- &Message{
+			Topic:     msg.Topic,
+			Partition: msg.Partition,
+			Offset:    msg.Offset,
+			Key:       msg.Key,
+			Value:     msg.Value,
+			Timestamp: msg.Timestamp,
+		}
+		sess.MarkMessage(msg, "")
+	}
+	return nil
 }

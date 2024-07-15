@@ -7,7 +7,7 @@ import (
 type (
 	KafkaEventRepository interface {
 		Publish(topic string, message interface{}) error
-		Subscribe(topic []string) (<-chan *kafka.Message, error)
+		Subscribe(topic []string, offsetOption int, consumerGroup string) (<-chan *kafka.Message, error)
 	}
 
 	kafkaEventRepository struct {
@@ -24,6 +24,6 @@ func (r *kafkaEventRepository) Publish(topic string, message interface{}) error 
 	return r.client.Publish(topic, message)
 }
 
-func (r *kafkaEventRepository) Subscribe(topic []string) (<-chan *kafka.Message, error) {
-	return r.client.Subscribe(topic)
+func (r *kafkaEventRepository) Subscribe(topic []string, offsetOption int, consumerGroup string) (<-chan *kafka.Message, error) {
+	return r.client.Subscribe(topic, offsetOption, consumerGroup)
 }
