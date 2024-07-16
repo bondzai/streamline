@@ -63,7 +63,7 @@ func (u *eventUseCase) subscribeRedisEvent(channel string) (<-chan *redis.Messag
 }
 
 func (u *eventUseCase) subscribeKafkaEvent(topic []string) (<-chan *kafka.Message, error) {
-	messageTopic, err := u.kafkaEventRepo.Subscribe(topic)
+	messageTopic, err := u.kafkaEventRepo.Subscribe(topic, 0, "")
 	if err != nil {
 		log.Println("Subscribe kafka event error: ", err)
 		return nil, err

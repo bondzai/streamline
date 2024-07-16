@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	OffsetFromLatest   = iota // Start from the latest offset processed
-	OffsetFromEarliest        // Start from the beginning (oldest) offset
-	Timeout            = 1
+	Timeout          = 1
+	OffsetFromLatest = iota
+	OffsetFromEarliest
 )
 
 type (
