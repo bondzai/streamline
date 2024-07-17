@@ -2,14 +2,13 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"sse-server/config"
 	"sse-server/internal/handlers"
 	"sse-server/internal/repositories"
 	"sse-server/internal/usecases"
 	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
-
-	"github.com/gofiber/fiber/v2"
 )
 
 func init() {
@@ -41,15 +40,22 @@ func main() {
 	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
-	app := fiber.New()
+	// Define HTTP handlers
+	http.HandleFunc("/api/v1/event/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			eventHandler.StreamEvent(w, r)
+		case http.MethodPatch:
+			eventHandler.PatchEvent(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
-	v1 := app.Group("/api/v1")
-
-	event := v1.Group("event")
-	event.Get("/:id", eventHandler.StreamEvent)
-	event.Patch("/:id", eventHandler.PatchEvent)
-
-	if err := app.Listen(":" + config.AppConfig.AppPort); err != nil {
+	// Start HTTP server
+	serverAddr := ":" + config.AppConfig.AppPort
+	log.Printf("Server listening on %s\n", serverAddr)
+	if err := http.ListenAndServe(serverAddr, nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

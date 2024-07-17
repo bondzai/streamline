@@ -1,89 +1,97 @@
 package handlers
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"sse-server/internal/entities"
 	"sse-server/internal/usecases"
-
-	"github.com/gofiber/fiber/v2"
-	"github.com/valyala/fasthttp"
 )
 
-type (
-	EventHandler interface {
-		PatchEvent(c *fiber.Ctx) error
-		StreamEvent(c *fiber.Ctx) error
-	}
+type EventHandler interface {
+	PatchEvent(w http.ResponseWriter, r *http.Request)
+	StreamEvent(w http.ResponseWriter, r *http.Request)
+}
 
-	eventHandler struct {
-		eventUseCase usecases.EventUseCase
-	}
-)
+type eventHandler struct {
+	eventUseCase usecases.EventUseCase
+}
 
 func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
 	return &eventHandler{eventUseCase: eventUseCase}
 }
 
-func (h eventHandler) PatchEvent(c *fiber.Ctx) error {
+func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 	var request entities.Event
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString("Can not parse request.")
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		http.Error(w, "Can not parse request.", http.StatusBadRequest)
+		return
 	}
 
-	if err := h.eventUseCase.PublishEvent(c.Params("id"), request); err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Unexpected error")
+	eventID := r.URL.Query().Get("id")
+	if eventID == "" {
+		http.Error(w, "Missing event ID.", http.StatusBadRequest)
+		return
 	}
 
-	return c.SendStatus(fiber.StatusNoContent)
+	err = h.eventUseCase.PublishEvent(eventID, request)
+	if err != nil {
+		http.Error(w, "Unexpected error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h eventHandler) StreamEvent(c *fiber.Ctx) error {
-	channelId := c.Params("id")
+func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
+	eventID := r.URL.Query().Get("id")
 
-	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
-	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	// Set headers for SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Transfer-Encoding", "chunked")
 
-	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	// Flush the headers to ensure the client receives them
+	w.(http.Flusher).Flush()
 
-		events := make(chan entities.Event)
-		defer close(events)
+	// Setup context for cancellation
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
-		go h.eventUseCase.StreamEventById(ctx, channelId, events)
+	// Channel to receive events
+	events := make(chan entities.Event)
+	defer close(events)
 
-		for {
-			select {
-			case event := <-events:
-				eventData, err := json.Marshal(event)
-				if err != nil {
-					fmt.Printf("Error encoding event data: %v\n", err)
-					continue
-				}
+	// Start streaming events
+	h.eventUseCase.StreamEventById(ctx, eventID, events)
 
-				eventStr := fmt.Sprintf("data: %s\n\n", eventData)
-				_, err = fmt.Fprint(w, eventStr)
-				if err != nil {
-					fmt.Printf("Error writing to client: %v. Closing HTTP connection.\n", err)
-					return
-				}
+	for {
+		select {
+		case event := <-events:
+			eventData, err := json.Marshal(event)
+			if err != nil {
+				fmt.Printf("Error encoding event data: %v\n", err)
+				continue
+			}
 
-				err = w.Flush()
-				if err != nil {
-					fmt.Printf("Error while flushing: %v. Closing HTTP connection.\n", err)
-					return
-				}
-			case <-ctx.Done():
-				fmt.Println("Client connection closed.")
+			eventStr := fmt.Sprintf("data: %s\n\n", eventData)
+
+			_, err = fmt.Fprint(w, eventStr)
+			if err != nil {
+				fmt.Printf("Error writing to client: %v. Closing HTTP connection.\n", err)
 				return
 			}
-		}
-	}))
 
-	return nil
+			// Flush the response to ensure the event data is sent immediately
+			w.(http.Flusher).Flush()
+
+		case <-ctx.Done():
+			fmt.Println("Client connection closed.")
+			return
+		}
+	}
 }
