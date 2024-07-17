@@ -18,16 +18,16 @@ type (
 		StreamEvent(c *fiber.Ctx) error
 	}
 
-	evenHandler struct {
+	eventHandler struct {
 		eventUseCase usecases.EventUseCase
 	}
 )
 
 func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
-	return &evenHandler{eventUseCase: eventUseCase}
+	return &eventHandler{eventUseCase: eventUseCase}
 }
 
-func (h evenHandler) PatchEvent(c *fiber.Ctx) error {
+func (h eventHandler) PatchEvent(c *fiber.Ctx) error {
 	var request entities.Event
 	if err := c.BodyParser(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("Can not parse request.")
@@ -40,7 +40,7 @@ func (h evenHandler) PatchEvent(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h evenHandler) StreamEvent(c *fiber.Ctx) error {
+func (h eventHandler) StreamEvent(c *fiber.Ctx) error {
 	channelId := c.Params("id")
 
 	c.Set("Content-Type", "text/event-stream")
@@ -49,27 +49,38 @@ func (h evenHandler) StreamEvent(c *fiber.Ctx) error {
 	c.Set("Transfer-Encoding", "chunked")
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		c, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		events := make(chan entities.Event)
+		defer close(events)
 
-		h.eventUseCase.StreamEventById(c, channelId, events)
+		go h.eventUseCase.StreamEventById(ctx, channelId, events)
 
-		for event := range events {
-			eventData, err := json.Marshal(event)
-			if err != nil {
-				fmt.Printf("Error encoding event data: %v\n", err)
-				continue
-			}
+		for {
+			select {
+			case event := <-events:
+				eventData, err := json.Marshal(event)
+				if err != nil {
+					fmt.Printf("Error encoding event data: %v\n", err)
+					continue
+				}
 
-			eventStr := fmt.Sprintf("data: %s\n\n", eventData)
-			fmt.Fprint(w, eventStr)
+				eventStr := fmt.Sprintf("data: %s\n\n", eventData)
+				_, err = fmt.Fprint(w, eventStr)
+				if err != nil {
+					fmt.Printf("Error writing to client: %v. Closing HTTP connection.\n", err)
+					return
+				}
 
-			err = w.Flush()
-			if err != nil {
-				fmt.Printf("Error while flushing: %v. Closing HTTP connection.\n", err)
-				break
+				err = w.Flush()
+				if err != nil {
+					fmt.Printf("Error while flushing: %v. Closing HTTP connection.\n", err)
+					return
+				}
+			case <-ctx.Done():
+				fmt.Println("Client connection closed.")
+				return
 			}
 		}
 	}))
