@@ -81,19 +81,11 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 		return
 	}
 
-	messageTopic, err := u.subscribeKafkaEvent([]string{channel})
-	if err != nil {
-		close(events)
-		return
-	}
-
 	// Get the number of running Goroutines
 	numGoroutines := runtime.NumGoroutine()
 	fmt.Printf("Number of Running Goroutines: %d\n", numGoroutines)
 
 	go func() {
-		defer close(events)
-
 		var event entities.Event
 		events <- event
 
@@ -113,21 +105,6 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 					log.Printf("Error unmarshaling message from Redis: %v", err)
 					continue
 				}
-
-				event.Id = channel
-				events <- event
-
-			case msgKafka, ok := <-messageTopic:
-				if !ok {
-					return
-				}
-
-				if err := json.Unmarshal(msgKafka.Value, &event); err != nil {
-					log.Printf("Error unmarshaling message from Kafka: %v", err)
-					continue
-				}
-
-				log.Printf("Kafka received messages: %s", string(msgKafka.Value))
 
 				event.Id = channel
 				events <- event
