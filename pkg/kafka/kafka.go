@@ -17,7 +17,6 @@ const (
 
 type (
 	Client interface {
-		IsConnected() bool
 		Publish(topic string, message interface{}) error
 		Subscribe(topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error)
 		Close() error
@@ -109,10 +108,6 @@ func newConsumerGroup(config Config, group string, offsetOption int) (sarama.Con
 		return nil, err
 	}
 	return consumerGroup, nil
-}
-
-func (r *client) IsConnected() bool {
-	return r.producer != nil
 }
 
 func (r *client) Publish(topic string, message interface{}) error {
