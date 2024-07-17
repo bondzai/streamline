@@ -49,8 +49,6 @@ func main() {
 	event.Get("/:id", eventHandler.StreamEvent)
 	event.Patch("/:id", eventHandler.PatchEvent)
 
-	log.Println("Shutting down...")
-
 	if err := app.Listen(":" + config.AppConfig.AppPort); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
