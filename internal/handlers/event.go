@@ -49,24 +49,19 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	eventID := r.URL.Query().Get("id")
 
-	// Set headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 
-	// Flush the headers to ensure the client receives them
 	w.(http.Flusher).Flush()
 
-	// Setup context for cancellation
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	// Channel to receive events
 	events := make(chan entities.Event)
 	defer close(events)
 
-	// Start streaming events
 	h.eventUseCase.StreamEventById(ctx, eventID, events)
 
 	for {
@@ -86,7 +81,6 @@ func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Flush the response to ensure the event data is sent immediately
 			w.(http.Flusher).Flush()
 
 		case <-ctx.Done():

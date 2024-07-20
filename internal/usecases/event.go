@@ -3,9 +3,7 @@ package usecases
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
-	"runtime"
 	"sse-server/internal/entities"
 	"sse-server/internal/repositories"
 	"sse-server/pkg/kafka"
@@ -33,47 +31,6 @@ func NewEventUseCase(eventRepo repositories.EventRepository, kafkaEventRepo repo
 	}
 }
 
-func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		log.Println("Json marshal error: ", err)
-		return err
-	}
-
-	err = u.eventRepo.Publish(channel, jsonMessage)
-	if err != nil {
-		log.Println("Publish event error: ", err)
-		return err
-	}
-
-	err = u.kafkaEventRepo.Publish(channel, message)
-	if err != nil {
-		log.Println("Publish event to kafka error: ", err)
-	}
-
-	return nil
-}
-
-func (u *eventUseCase) subscribeRedisEvent(channel string) (<-chan *redis.Message, error) {
-	messageChannel, err := u.eventRepo.Subscribe(channel)
-	if err != nil {
-		log.Println("Subscribe redis event error: ", err)
-		return nil, err
-	}
-
-	return messageChannel, nil
-}
-
-func (u *eventUseCase) subscribeKafkaEvent(topic []string) (<-chan *kafka.Message, error) {
-	messageTopic, err := u.kafkaEventRepo.Subscribe(topic, 0, consumerGroupName)
-	if err != nil {
-		log.Println("Subscribe kafka event error: ", err)
-		return nil, err
-	}
-
-	return messageTopic, nil
-}
-
 func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, events chan<- entities.Event) {
 	messageChannel, err := u.subscribeRedisEvent(channel)
 	if err != nil {
@@ -81,13 +38,11 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 		return
 	}
 
-	// Get the number of running Goroutines
-	numGoroutines := runtime.NumGoroutine()
-	fmt.Printf("Number of Running Goroutines: %d\n", numGoroutines)
-
 	go func() {
+		defer close(events) // Close events channel when the goroutine exits
+
 		var event entities.Event
-		events <- event
+		events <- event // Initial event to signal start
 
 		for {
 			select {
@@ -111,4 +66,45 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 			}
 		}
 	}()
+}
+
+func (u *eventUseCase) subscribeRedisEvent(channel string) (<-chan *redis.Message, error) {
+	messageChannel, err := u.eventRepo.Subscribe(channel)
+	if err != nil {
+		log.Println("Subscribe redis event error: ", err)
+		return nil, err
+	}
+
+	return messageChannel, nil
+}
+
+func (u *eventUseCase) subscribeKafkaEvent(topic []string) (<-chan *kafka.Message, error) {
+	messageTopic, err := u.kafkaEventRepo.Subscribe(topic, 0, consumerGroupName)
+	if err != nil {
+		log.Println("Subscribe kafka event error: ", err)
+		return nil, err
+	}
+
+	return messageTopic, nil
+}
+
+func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Json marshal error: ", err)
+		return err
+	}
+
+	err = u.eventRepo.Publish(channel, jsonMessage)
+	if err != nil {
+		log.Println("Publish event error: ", err)
+		return err
+	}
+
+	err = u.kafkaEventRepo.Publish(channel, message)
+	if err != nil {
+		log.Println("Publish event to kafka error: ", err)
+	}
+
+	return nil
 }
