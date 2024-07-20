@@ -40,7 +40,6 @@ func main() {
 	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
-	// Define HTTP handlers
 	http.HandleFunc("/api/v1/event/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -52,7 +51,6 @@ func main() {
 		}
 	})
 
-	// Start HTTP server
 	serverAddr := ":" + config.AppConfig.AppPort
 	log.Printf("Server listening on %s\n", serverAddr)
 	if err := http.ListenAndServe(serverAddr, nil); err != nil {
