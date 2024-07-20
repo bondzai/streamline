@@ -39,10 +39,10 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 	}
 
 	go func() {
-		defer close(events) // Close events channel when the goroutine exits
+		defer close(events)
 
 		var event entities.Event
-		events <- event // Initial event to signal start
+		events <- event
 
 		for {
 			select {
