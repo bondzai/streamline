@@ -78,6 +78,7 @@ func newProducer(config Config) (sarama.SyncProducer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return producer, nil
 }
 
@@ -107,6 +108,7 @@ func newConsumerGroup(config Config, group string, offsetOption int) (sarama.Con
 	if err != nil {
 		return nil, err
 	}
+
 	return consumerGroup, nil
 }
 
@@ -147,6 +149,7 @@ func (r *client) Subscribe(topics []string, offsetOption int, consumerGroup stri
 			if err := consumerGroupClient.Consume(ctx, topics, consumer); err != nil {
 				log.Printf("Error from consumer: %v", err)
 			}
+
 			if ctx.Err() != nil {
 				return
 			}
@@ -162,11 +165,13 @@ func (r *client) Close() error {
 	if err := r.producer.Close(); err != nil {
 		return err
 	}
+
 	if r.consumerGroup != nil {
 		if err := r.consumerGroup.Close(); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
