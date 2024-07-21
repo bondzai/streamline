@@ -175,13 +175,9 @@ type consumerGroupHandler struct {
 	offsetOption int
 }
 
-func (h *consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
-	return nil
-}
+func (h *consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error { return nil }
 
-func (h *consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
-	return nil
-}
+func (h *consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
 
 func (h *consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for msg := range claim.Messages() {
@@ -195,5 +191,6 @@ func (h *consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, cl
 		}
 		sess.MarkMessage(msg, "")
 	}
+
 	return nil
 }
