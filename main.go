@@ -20,16 +20,16 @@ func init() {
 
 func main() {
 	redisClient, err := redis.NewClient(redis.Config{
-		Address:  config.AppConfig.RedisURL,
-		Password: config.AppConfig.RedisPassword,
-		DB:       config.AppConfig.RedisDatabase,
+		Address:  config.Env.RedisURL,
+		Password: config.Env.RedisPassword,
+		DB:       config.Env.RedisDatabase,
 	})
 	if err != nil {
 		log.Fatalf("Failed to setup Redis: %v", err)
 	}
 
 	kafkaClient, err := kafka.NewClient(kafka.Config{
-		Brokers: []string{config.AppConfig.KafkaUrl},
+		Brokers: []string{config.Env.KafkaUrl},
 	})
 	if err != nil {
 		log.Fatalf("Failed to setup Kafka client: %v", err)
@@ -51,7 +51,7 @@ func main() {
 		}
 	})
 
-	serverAddr := ":" + config.AppConfig.AppPort
+	serverAddr := ":" + config.Env.AppPort
 	log.Printf("Server listening on %s\n", serverAddr)
 	if err := http.ListenAndServe(serverAddr, nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var AppConfig Config
+var Env Config
 
 type Config struct {
 	AppPort       string
@@ -28,7 +28,7 @@ func LoadConfig() error {
 		return err
 	}
 
-	AppConfig = Config{
+	Env = Config{
 		AppPort:       viper.GetString("app.port"),
 		RedisURL:      viper.GetString("redis.host"),
 		RedisUser:     viper.GetString("redis.user"),
