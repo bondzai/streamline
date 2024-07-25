@@ -39,15 +39,13 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 	}
 
 	go func() {
-		defer close(events)
-
 		var event entities.Event
 		events <- event
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Stopped receiving messages from Redis.", channel)
+				log.Println("Stopped receiving messages from source.", channel)
 				return
 
 			case msg, ok := <-messageChannel:
