@@ -101,16 +101,24 @@ func (r *client) Subscribe(channel string) (<-chan *Message, error) {
 
 	ch := make(chan *Message)
 	go func() {
-		for msg := range pubsub.Channel() {
-			ch <- &Message{
-				Channel:      msg.Channel,
-				Pattern:      msg.Pattern,
-				Payload:      msg.Payload,
-				PayloadSlice: msg.PayloadSlice,
-				Timestamp:    time.Now(),
+		defer close(ch)
+		defer pubsub.Close()
+
+		for {
+			select {
+			case msg := <-pubsub.Channel():
+				ch <- &Message{
+					Channel:      msg.Channel,
+					Pattern:      msg.Pattern,
+					Payload:      msg.Payload,
+					PayloadSlice: msg.PayloadSlice,
+					Timestamp:    time.Now(),
+				}
+
+			case <-ctx.Done():
+				return
 			}
 		}
-		close(ch)
 	}()
 
 	return ch, nil
