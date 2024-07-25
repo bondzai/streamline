@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	"sse-server/internal/entities"
 	"sse-server/internal/usecases"
@@ -49,6 +50,8 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	eventID := r.URL.Query().Get("id")
 
+	fmt.Printf("Number of Running Goroutines: %d\n", runtime.NumGoroutine())
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -60,7 +63,6 @@ func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	events := make(chan entities.Event)
-	defer close(events)
 
 	h.eventUseCase.StreamEventById(ctx, eventID, events)
 
