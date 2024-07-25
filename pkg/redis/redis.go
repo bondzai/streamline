@@ -101,7 +101,6 @@ func (r *client) Subscribe(channel string) (<-chan *Message, error) {
 
 	ch := make(chan *Message)
 	go func() {
-		defer close(ch)
 		defer pubsub.Close()
 
 		for {
