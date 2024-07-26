@@ -23,11 +23,11 @@ const (
 
 // Log messages for various events and errors.
 const (
-	MsgErrorEncodingEventData = "error encoding event data"
-	MsgErrorWritingToClient   = "error writing to client"
-	MsgResponseWriterError    = "response writer does not support flushing"
-	MsgEventChannelClosed     = "event channel closed"
-	MsgClientConnectionClosed = "client connection closed"
+	MsgErrorEncodingEventData = "SSE error encoding event data"
+	MsgErrorWritingToClient   = "SSE error writing to client"
+	MsgResponseWriterError    = "SSE response writer does not support flushing"
+	MsgEventChannelClosed     = "SSE event channel closed"
+	MsgClientConnectionClosed = "SSE client connection closed"
 )
 
 // setSSEHeaders sets the necessary headers for Server-Sent Events.
