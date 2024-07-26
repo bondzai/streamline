@@ -48,7 +48,16 @@ func logError(message string, err error) {
 // isEmptySliceOrArray checks if the given event is an empty slice or array.
 func isEmptySliceOrArray(event interface{}) bool {
 	v := reflect.ValueOf(event)
+
 	return (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0
+}
+
+// validateData prepares and validates the data for the SSE response.
+func validateData[T any](event T) ([]byte, error) {
+	if isEmptySliceOrArray(event) {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(event)
 }
 
 // sendResponse handles sending the response to the client and flushing.
@@ -79,16 +88,10 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 				return
 			}
 
-			var data []byte
-			if isEmptySliceOrArray(event) {
-				data = []byte("[]")
-			} else {
-				var err error
-				data, err = json.Marshal(event)
-				if err != nil {
-					logError(MsgErrorEncodingEventData, err)
-					continue
-				}
+			data, err := validateData(event)
+			if err != nil {
+				logError(MsgErrorEncodingEventData, err)
+				continue
 			}
 
 			sendResponse(w, flusher, data)
