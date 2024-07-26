@@ -51,6 +51,15 @@ func isEmptySliceOrArray(event interface{}) bool {
 	return (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0
 }
 
+// sendResponse handles sending the response to the client and flushing.
+func sendResponse(w http.ResponseWriter, flusher http.Flusher, data []byte) {
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		logError(MsgErrorWritingToClient, err)
+		return
+	}
+	flusher.Flush()
+}
+
 // StreamSSE handles Server-Sent Events for the given context and events channel.
 // It streams events from the provided channel to the HTTP response writer.
 func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
@@ -60,7 +69,6 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 	if !ok {
 		log.Fatal(MsgResponseWriterError)
 	}
-
 	flusher.Flush()
 
 	for {
@@ -71,24 +79,19 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 				return
 			}
 
+			var data []byte
 			if isEmptySliceOrArray(event) {
-				fmt.Fprint(w, "data: []\n\n")
-				flusher.Flush()
-				continue
+				data = []byte("[]")
+			} else {
+				var err error
+				data, err = json.Marshal(event)
+				if err != nil {
+					logError(MsgErrorEncodingEventData, err)
+					continue
+				}
 			}
 
-			eventData, err := json.Marshal(event)
-			if err != nil {
-				logError(MsgErrorEncodingEventData, err)
-				continue
-			}
-
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", eventData); err != nil {
-				logError(MsgErrorWritingToClient, err)
-				return
-			}
-
-			flusher.Flush()
+			sendResponse(w, flusher, data)
 
 		case <-ctx.Done():
 			log.Println(MsgClientConnectionClosed)
