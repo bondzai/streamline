@@ -24,7 +24,7 @@ type (
 		Remove(keys ...string) error
 
 		Publish(channel string, message interface{}) error
-		Subscribe(channel string) (<-chan *Message, error)
+		Subscribe(ctx context.Context, channel string) (<-chan *Message, error)
 	}
 
 	client struct {
@@ -99,9 +99,7 @@ func (r *client) Publish(channel string, message interface{}) error {
 	return r.client.Publish(ctx, channel, message).Err()
 }
 
-func (r *client) Subscribe(channel string) (<-chan *Message, error) {
-	ctx := context.Background()
-
+func (r *client) Subscribe(ctx context.Context, channel string) (<-chan *Message, error) {
 	pubsub := r.client.Subscribe(ctx, channel)
 	_, err := pubsub.Receive(ctx)
 	if err != nil {
@@ -110,6 +108,7 @@ func (r *client) Subscribe(channel string) (<-chan *Message, error) {
 
 	ch := make(chan *Message)
 	go func() {
+		defer close(ch)
 		defer pubsub.Close()
 
 		for {
@@ -124,6 +123,7 @@ func (r *client) Subscribe(channel string) (<-chan *Message, error) {
 				}
 
 			case <-ctx.Done():
+				log.Println("Redis pub/sub channel stopped")
 				return
 			}
 		}

@@ -32,7 +32,7 @@ func NewEventUseCase(eventRepo repositories.EventRepository, kafkaEventRepo repo
 }
 
 func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, events chan<- entities.Event) {
-	messageChannel, err := u.subscribeRedisEvent(channel)
+	messageChannel, err := u.subscribeRedisEvent(ctx, channel)
 	if err != nil {
 		close(events)
 		return
@@ -66,8 +66,8 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 	}()
 }
 
-func (u *eventUseCase) subscribeRedisEvent(channel string) (<-chan *redis.Message, error) {
-	messageChannel, err := u.eventRepo.Subscribe(channel)
+func (u *eventUseCase) subscribeRedisEvent(ctx context.Context, channel string) (<-chan *redis.Message, error) {
+	messageChannel, err := u.eventRepo.Subscribe(ctx, channel)
 	if err != nil {
 		log.Println("Subscribe redis event error: ", err)
 		return nil, err
