@@ -172,6 +172,8 @@ func (r *client) Close() error {
 		}
 	}
 
+	log.Println("Disconnected from Kafka.")
+
 	return nil
 }
 

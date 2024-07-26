@@ -16,6 +16,7 @@ const (
 type (
 	Client interface {
 		IsConnected() bool
+		Close()
 
 		Get(key string, value interface{}) error
 		Set(key string, value interface{}) error
@@ -62,7 +63,7 @@ func NewClient(config Config) (Client, error) {
 		return nil, err
 	}
 
-	log.Println("Connect to redis successfully.")
+	log.Println("Connected to Redis successfully.")
 
 	return &client{
 		client: rdb,
@@ -80,6 +81,15 @@ func (r *client) IsConnected() bool {
 	pong, err := r.client.Ping(ctx).Result()
 	log.Fatal(pong, err)
 	return err == nil
+}
+
+func (r *client) Close() {
+	if err := r.client.Close(); err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Println("Disconnected from Redis.")
 }
 
 func (r *client) Publish(channel string, message interface{}) error {
