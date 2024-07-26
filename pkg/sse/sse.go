@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-// SSE header constants
+// Header constants for Server-Sent Events.
 const (
 	ContentTypeHeader      = "Content-Type"
 	ContentTypeValue       = "text/event-stream"
@@ -20,13 +20,13 @@ const (
 	TransferEncodingValue  = "chunked"
 )
 
-// Error messages
+// Log messages for various events and errors.
 const (
-	ErrorEncodingEventData = "Error encoding event data"
-	ErrorWritingToClient   = "Error writing to client"
-	ResponseWriterError    = "Response writer does not support flushing"
-	EventChannelClosed     = "Event channel closed"
-	ClientConnectionClosed = "Client connection closed"
+	MsgErrorEncodingEventData = "error encoding event data"
+	MsgErrorWritingToClient   = "error writing to client"
+	MsgResponseWriterError    = "response writer does not support flushing"
+	MsgEventChannelClosed     = "event channel closed"
+	MsgClientConnectionClosed = "client connection closed"
 )
 
 // setSSEHeaders sets the necessary headers for Server-Sent Events.
@@ -40,17 +40,18 @@ func setSSEHeaders(w http.ResponseWriter) {
 // logError logs errors with a consistent format.
 func logError(message string, err error) {
 	if err != nil {
-		log.Printf("ERROR: %s: %v\n", message, err)
+		log.Printf("ERROR: %s: %v", message, err)
 	}
 }
 
 // StreamSSE handles Server-Sent Events for the given context and events channel.
+// It streams events from the provided channel to the HTTP response writer.
 func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
 	setSSEHeaders(w)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		log.Fatal(ResponseWriterError)
+		log.Fatal(MsgResponseWriterError)
 	}
 
 	flusher.Flush()
@@ -59,28 +60,25 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 		select {
 		case event, ok := <-events:
 			if !ok {
-				log.Println(EventChannelClosed)
+				log.Println(MsgEventChannelClosed)
 				return
 			}
 
 			eventData, err := json.Marshal(event)
 			if err != nil {
-				logError(ErrorEncodingEventData, err)
+				logError(MsgErrorEncodingEventData, err)
 				continue
 			}
 
-			eventStr := fmt.Sprintf("data: %s\n\n", eventData)
-
-			_, err = fmt.Fprint(w, eventStr)
-			if err != nil {
-				logError(ErrorWritingToClient, err)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", eventData); err != nil {
+				logError(MsgErrorWritingToClient, err)
 				return
 			}
 
 			flusher.Flush()
 
 		case <-ctx.Done():
-			log.Println(ClientConnectionClosed)
+			log.Println(MsgClientConnectionClosed)
 			return
 		}
 	}
