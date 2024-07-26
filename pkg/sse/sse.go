@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 )
 
 // Header constants for Server-Sent Events.
@@ -22,11 +23,11 @@ const (
 
 // Log messages for various events and errors.
 const (
-	MsgErrorEncodingEventData = "error encoding event data"
-	MsgErrorWritingToClient   = "error writing to client"
-	MsgResponseWriterError    = "response writer does not support flushing"
-	MsgEventChannelClosed     = "event channel closed"
-	MsgClientConnectionClosed = "client connection closed"
+	MsgErrorEncodingEventData = "SSE error encoding event data"
+	MsgErrorWritingToClient   = "SSE error writing to client"
+	MsgResponseWriterError    = "SSE response writer does not support flushing"
+	MsgEventChannelClosed     = "SSE event channel closed"
+	MsgClientConnectionClosed = "SSE client connection closed"
 )
 
 // setSSEHeaders sets the necessary headers for Server-Sent Events.
@@ -44,6 +45,29 @@ func logError(message string, err error) {
 	}
 }
 
+// isEmptySliceOrArray checks if the given event is an empty slice or array.
+func isEmptySliceOrArray(event interface{}) bool {
+	v := reflect.ValueOf(event)
+	return (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0
+}
+
+// validateData prepares and validates the data for the SSE response.
+func validateData[T any](event T) ([]byte, error) {
+	if isEmptySliceOrArray(event) {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(event)
+}
+
+// sendResponse handles sending the response to the client and flushing.
+func sendResponse(w http.ResponseWriter, flusher http.Flusher, data []byte) {
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		logError(MsgErrorWritingToClient, err)
+		return
+	}
+	flusher.Flush()
+}
+
 // StreamSSE handles Server-Sent Events for the given context and events channel.
 // It streams events from the provided channel to the HTTP response writer.
 func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
@@ -53,7 +77,6 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 	if !ok {
 		log.Fatal(MsgResponseWriterError)
 	}
-
 	flusher.Flush()
 
 	for {
@@ -64,18 +87,13 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 				return
 			}
 
-			eventData, err := json.Marshal(event)
+			data, err := validateData(event)
 			if err != nil {
 				logError(MsgErrorEncodingEventData, err)
 				continue
 			}
 
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", eventData); err != nil {
-				logError(MsgErrorWritingToClient, err)
-				return
-			}
-
-			flusher.Flush()
+			sendResponse(w, flusher, data)
 
 		case <-ctx.Done():
 			log.Println(MsgClientConnectionClosed)
