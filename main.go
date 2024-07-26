@@ -9,6 +9,8 @@ import (
 	"sse-server/internal/usecases"
 	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
+
+	"github.com/gorilla/mux"
 )
 
 func init() {
@@ -27,6 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to setup Redis: %v", err)
 	}
+	defer redisClient.Close()
 
 	kafkaClient, err := kafka.NewClient(kafka.Config{
 		Brokers: []string{config.Env.KafkaUrl},
@@ -34,26 +37,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to setup Kafka client: %v", err)
 	}
+	defer kafkaClient.Close()
 
 	kafkaEventRepo := repositories.KafkaEventRepository(kafkaClient)
 	eventRepo := repositories.NewEventRepository(redisClient)
 	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
-	http.HandleFunc("/api/v1/event/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			eventHandler.StreamEvent(w, r)
-		case http.MethodPatch:
-			eventHandler.PatchEvent(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	r := mux.NewRouter()
+	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.StreamEvent).Methods(http.MethodGet)
+	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.PatchEvent).Methods(http.MethodPatch)
 
 	serverAddr := ":" + config.Env.AppPort
 	log.Printf("Server listening on %s\n", serverAddr)
-	if err := http.ListenAndServe(serverAddr, nil); err != nil {
+	if err := http.ListenAndServe(serverAddr, r); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

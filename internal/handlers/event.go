@@ -10,6 +10,8 @@ import (
 	"sse-server/internal/entities"
 	"sse-server/internal/usecases"
 	"sse-server/pkg/sse"
+
+	"github.com/gorilla/mux"
 )
 
 type EventHandler interface {
@@ -29,11 +31,11 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 	var request entities.Event
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		http.Error(w, "Can not parse request.", http.StatusBadRequest)
+		http.Error(w, "Cannot parse request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	eventID := r.URL.Query().Get("id")
+	eventID := mux.Vars(r)["id"]
 	if eventID == "" {
 		http.Error(w, "Missing event ID.", http.StatusBadRequest)
 		return
@@ -51,13 +53,13 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Number of Running Goroutines: %d\n", runtime.NumGoroutine())
 
-	eventID := r.URL.Query().Get("id")
+	eventID := mux.Vars(r)["id"]
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	events := make(chan entities.Event)
-	go h.eventUseCase.StreamEventById(ctx, eventID, events)
+	h.eventUseCase.StreamEventById(ctx, eventID, events)
 
 	sse.StreamSSE(ctx, w, events)
 }
