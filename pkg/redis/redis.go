@@ -100,8 +100,7 @@ func (r *client) Publish(channel string, message interface{}) error {
 }
 
 func (r *client) Subscribe(channel string) (<-chan *Message, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout*time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	pubsub := r.client.Subscribe(ctx, channel)
 	_, err := pubsub.Receive(ctx)
