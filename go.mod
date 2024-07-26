@@ -5,6 +5,7 @@ go 1.22.2
 require (
 	github.com/IBM/sarama v1.43.2
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/gorilla/mux v1.8.1
 	github.com/spf13/viper v1.19.0
 )
 

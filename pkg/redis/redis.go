@@ -16,6 +16,7 @@ const (
 type (
 	Client interface {
 		IsConnected() bool
+		Close()
 
 		Get(key string, value interface{}) error
 		Set(key string, value interface{}) error
@@ -23,7 +24,7 @@ type (
 		Remove(keys ...string) error
 
 		Publish(channel string, message interface{}) error
-		Subscribe(channel string) (<-chan *Message, error)
+		Subscribe(ctx context.Context, channel string) (<-chan *Message, error)
 	}
 
 	client struct {
@@ -62,7 +63,7 @@ func NewClient(config Config) (Client, error) {
 		return nil, err
 	}
 
-	log.Println("Connect to redis successfully.")
+	log.Println("Connected to Redis successfully.")
 
 	return &client{
 		client: rdb,
@@ -82,6 +83,15 @@ func (r *client) IsConnected() bool {
 	return err == nil
 }
 
+func (r *client) Close() {
+	if err := r.client.Close(); err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Println("Disconnected from Redis.")
+}
+
 func (r *client) Publish(channel string, message interface{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout*time.Second)
 	defer cancel()
@@ -89,10 +99,7 @@ func (r *client) Publish(channel string, message interface{}) error {
 	return r.client.Publish(ctx, channel, message).Err()
 }
 
-func (r *client) Subscribe(channel string) (<-chan *Message, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout*time.Second)
-	defer cancel()
-
+func (r *client) Subscribe(ctx context.Context, channel string) (<-chan *Message, error) {
 	pubsub := r.client.Subscribe(ctx, channel)
 	_, err := pubsub.Receive(ctx)
 	if err != nil {
@@ -116,6 +123,7 @@ func (r *client) Subscribe(channel string) (<-chan *Message, error) {
 				}
 
 			case <-ctx.Done():
+				log.Println("Redis pub/sub channel stopped")
 				return
 			}
 		}
