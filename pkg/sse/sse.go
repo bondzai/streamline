@@ -45,6 +45,12 @@ func logError(message string, err error) {
 	}
 }
 
+// isEmptySliceOrArray checks if the given event is an empty slice or array.
+func isEmptySliceOrArray(event interface{}) bool {
+	v := reflect.ValueOf(event)
+	return (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0
+}
+
 // StreamSSE handles Server-Sent Events for the given context and events channel.
 // It streams events from the provided channel to the HTTP response writer.
 func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
@@ -65,12 +71,10 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 				return
 			}
 
-			if reflect.ValueOf(event).Kind() == reflect.Slice || reflect.ValueOf(event).Kind() == reflect.Array {
-				if reflect.ValueOf(event).Len() == 0 {
-					fmt.Fprint(w, "data: []\n\n")
-					flusher.Flush()
-					continue
-				}
+			if isEmptySliceOrArray(event) {
+				fmt.Fprint(w, "data: []\n\n")
+				flusher.Flush()
+				continue
 			}
 
 			eventData, err := json.Marshal(event)
