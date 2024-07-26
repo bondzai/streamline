@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"sse-server/config"
 	"sse-server/internal/handlers"
 	"sse-server/internal/repositories"
@@ -10,7 +9,7 @@ import (
 	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
 
-	"github.com/gorilla/mux"
+	"github.com/gofiber/fiber/v2"
 )
 
 func init() {
@@ -21,6 +20,7 @@ func init() {
 }
 
 func main() {
+	// Initialize Redis client
 	redisClient, err := redis.NewClient(redis.Config{
 		Address:  config.Env.RedisURL,
 		Password: config.Env.RedisPassword,
@@ -31,6 +31,7 @@ func main() {
 	}
 	defer redisClient.Close()
 
+	// Initialize Kafka client
 	kafkaClient, err := kafka.NewClient(kafka.Config{
 		Brokers: []string{config.Env.KafkaUrl},
 	})
@@ -39,18 +40,23 @@ func main() {
 	}
 	defer kafkaClient.Close()
 
+	// Setup repositories and use case
 	kafkaEventRepo := repositories.KafkaEventRepository(kafkaClient)
 	eventRepo := repositories.NewEventRepository(redisClient)
 	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
-	r := mux.NewRouter()
-	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.StreamEvent).Methods(http.MethodGet)
-	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.PatchEvent).Methods(http.MethodPatch)
+	// Create a new Fiber app
+	app := fiber.New()
 
+	// Define routes
+	app.Get("/api/v1/event/:id", eventHandler.StreamEvent)
+	app.Patch("/api/v1/event/:id", eventHandler.PatchEvent)
+
+	// Start the server
 	serverAddr := ":" + config.Env.AppPort
 	log.Printf("Server listening on %s\n", serverAddr)
-	if err := http.ListenAndServe(serverAddr, r); err != nil {
+	if err := app.Listen(serverAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

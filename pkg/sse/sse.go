@@ -1,16 +1,22 @@
 package sse
 
 import (
-	"context"
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"reflect"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 )
 
-// Header constants for Server-Sent Events.
 const (
+	// constants
+	ConnCheckInterval = 10
+
+	// header constants for Server-Sent Events.
 	ContentTypeHeader      = "Content-Type"
 	ContentTypeValue       = "text/event-stream"
 	CacheControlHeader     = "Cache-Control"
@@ -19,24 +25,13 @@ const (
 	ConnectionValue        = "keep-alive"
 	TransferEncodingHeader = "Transfer-Encoding"
 	TransferEncodingValue  = "chunked"
-)
 
-// Log messages for various events and errors.
-const (
+	// log messages for various events and errors.
 	MsgErrorEncodingEventData = "SSE error encoding event data"
 	MsgErrorWritingToClient   = "SSE error writing to client"
-	MsgResponseWriterError    = "SSE response writer does not support flushing"
 	MsgEventChannelClosed     = "SSE event channel closed"
 	MsgClientConnectionClosed = "SSE client connection closed"
 )
-
-// setSSEHeaders sets the necessary headers for Server-Sent Events.
-func setSSEHeaders(w http.ResponseWriter) {
-	w.Header().Set(ContentTypeHeader, ContentTypeValue)
-	w.Header().Set(CacheControlHeader, CacheControlValue)
-	w.Header().Set(ConnectionHeader, ConnectionValue)
-	w.Header().Set(TransferEncodingHeader, TransferEncodingValue)
-}
 
 // logError logs errors with a consistent format.
 func logError(message string, err error) {
@@ -45,59 +40,64 @@ func logError(message string, err error) {
 	}
 }
 
-// isEmptySliceOrArray checks if the given event is an empty slice or array.
-func isEmptySliceOrArray(event interface{}) bool {
-	v := reflect.ValueOf(event)
-	return (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0
-}
-
 // validateData prepares and validates the data for the SSE response.
 func validateData[T any](event T) ([]byte, error) {
-	if isEmptySliceOrArray(event) {
+	v := reflect.ValueOf(event)
+	if (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0 {
 		return []byte("[]"), nil
 	}
+
 	return json.Marshal(event)
 }
 
 // sendResponse handles sending the response to the client and flushing.
-func sendResponse(w http.ResponseWriter, flusher http.Flusher, data []byte) {
-	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-		logError(MsgErrorWritingToClient, err)
-		return
+func sendResponse(writer *bufio.Writer, data []byte) error {
+	if _, err := fmt.Fprintf(writer, "data: %s\n\n", data); err != nil {
+		return err
 	}
-	flusher.Flush()
+
+	return writer.Flush()
 }
 
 // StreamSSE handles Server-Sent Events for the given context and events channel.
-// It streams events from the provided channel to the HTTP response writer.
-func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
-	setSSEHeaders(w)
+// It streams events from the provided channel to the HTTP response writer using fasthttp.
+func StreamSSE[T any](ctx *fiber.Ctx, events chan T) error {
+	ctx.Set(ContentTypeHeader, ContentTypeValue)
+	ctx.Set(CacheControlHeader, CacheControlValue)
+	ctx.Set(ConnectionHeader, ConnectionValue)
+	ctx.Set(TransferEncodingHeader, TransferEncodingValue)
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		log.Fatal(MsgResponseWriterError)
-	}
-	flusher.Flush()
+	ctx.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(writer *bufio.Writer) {
+		ticker := time.NewTicker(ConnCheckInterval * time.Second)
+		defer ticker.Stop()
 
-	for {
-		select {
-		case event, ok := <-events:
-			if !ok {
-				log.Println(MsgEventChannelClosed)
-				return
+		for {
+			select {
+			case event, ok := <-events:
+				if !ok {
+					log.Println(MsgEventChannelClosed)
+					return
+				}
+
+				data, err := validateData(event)
+				if err != nil {
+					logError(MsgErrorEncodingEventData, err)
+					continue
+				}
+
+				if err := sendResponse(writer, data); err != nil {
+					logError(MsgErrorWritingToClient, err)
+					return
+				}
+
+			case <-ticker.C:
+				if err := writer.Flush(); err != nil {
+					logError(MsgClientConnectionClosed, err)
+					return
+				}
 			}
-
-			data, err := validateData(event)
-			if err != nil {
-				logError(MsgErrorEncodingEventData, err)
-				continue
-			}
-
-			sendResponse(w, flusher, data)
-
-		case <-ctx.Done():
-			log.Println(MsgClientConnectionClosed)
-			return
 		}
-	}
+	}))
+
+	return nil
 }

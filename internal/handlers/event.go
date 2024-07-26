@@ -1,22 +1,19 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"runtime"
 
 	"sse-server/internal/entities"
 	"sse-server/internal/usecases"
 	"sse-server/pkg/sse"
 
-	"github.com/gorilla/mux"
+	"github.com/gofiber/fiber/v2"
 )
 
 type EventHandler interface {
-	PatchEvent(w http.ResponseWriter, r *http.Request)
-	StreamEvent(w http.ResponseWriter, r *http.Request)
+	PatchEvent(c *fiber.Ctx) error
+	StreamEvent(c *fiber.Ctx) error
 }
 
 type eventHandler struct {
@@ -27,39 +24,31 @@ func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
 	return &eventHandler{eventUseCase: eventUseCase}
 }
 
-func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
+func (h *eventHandler) PatchEvent(c *fiber.Ctx) error {
 	var request entities.Event
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		http.Error(w, "Cannot parse request: "+err.Error(), http.StatusBadRequest)
-		return
+	if err := c.BodyParser(&request); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Cannot parse request: "+err.Error())
 	}
 
-	eventID := mux.Vars(r)["id"]
+	eventID := c.Params("id")
 	if eventID == "" {
-		http.Error(w, "Missing event ID.", http.StatusBadRequest)
-		return
+		return fiber.NewError(fiber.StatusBadRequest, "Missing event ID.")
 	}
 
-	err = h.eventUseCase.PublishEvent(eventID, request)
-	if err != nil {
-		http.Error(w, "Unexpected error", http.StatusInternalServerError)
-		return
+	if err := h.eventUseCase.PublishEvent(eventID, request); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Unexpected error")
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
+func (h *eventHandler) StreamEvent(c *fiber.Ctx) error {
 	fmt.Printf("Number of Running Goroutines: %d\n", runtime.NumGoroutine())
 
-	eventID := mux.Vars(r)["id"]
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
+	eventID := c.Params("id")
 
 	events := make(chan entities.Event)
-	h.eventUseCase.StreamEventById(ctx, eventID, events)
+	go h.eventUseCase.StreamEventById(c.Context(), eventID, events)
 
-	sse.StreamSSE(ctx, w, events)
+	return sse.StreamSSE(c, events)
 }
