@@ -48,7 +48,6 @@ func logError(message string, err error) {
 // isEmptySliceOrArray checks if the given event is an empty slice or array.
 func isEmptySliceOrArray(event interface{}) bool {
 	v := reflect.ValueOf(event)
-
 	return (v.Kind() == reflect.Slice || v.Kind() == reflect.Array) && v.Len() == 0
 }
 
