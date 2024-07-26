@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 )
 
 // Header constants for Server-Sent Events.
@@ -62,6 +63,14 @@ func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T)
 			if !ok {
 				log.Println(MsgEventChannelClosed)
 				return
+			}
+
+			if reflect.ValueOf(event).Kind() == reflect.Slice || reflect.ValueOf(event).Kind() == reflect.Array {
+				if reflect.ValueOf(event).Len() == 0 {
+					fmt.Fprint(w, "data: []\n\n")
+					flusher.Flush()
+					continue
+				}
 			}
 
 			eventData, err := json.Marshal(event)
