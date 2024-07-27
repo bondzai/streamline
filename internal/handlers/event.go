@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"streamline-sse/internal/entities"
@@ -15,8 +16,8 @@ import (
 
 const (
 	MsgCanNotParseRequest = "Cannot parse request"
-	MsgMissingEventId     = "Missing event ID"
-	MsgUnExpectedErr      = "Unexpected error"
+	MsgMissingEventID     = "Missing event ID"
+	MsgUnexpectedErr      = "Unexpected error"
 )
 
 type EventHandler interface {
@@ -33,17 +34,26 @@ func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
 }
 
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
-	toolbox.TrackRoutines()
-
 	chanID := mux.Vars(r)["id"]
+	if chanID == "" {
+		http.Error(w, MsgMissingEventID, http.StatusBadRequest)
+		return
+	}
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	events := make(chan entities.Event)
+	defer close(events)
+
 	h.eventUseCase.StreamEvent(ctx, chanID, events)
 
-	sse.Stream(ctx, w, events)
+	if err := sse.Stream(ctx, w, events); err != nil {
+		log.Printf("Error streaming SSE: %v", err)
+		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
+	}
+
+	toolbox.TrackRoutines()
 }
 
 func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
@@ -56,13 +66,13 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 
 	chanID := mux.Vars(r)["id"]
 	if chanID == "" {
-		http.Error(w, MsgMissingEventId, http.StatusBadRequest)
+		http.Error(w, MsgMissingEventID, http.StatusBadRequest)
 		return
 	}
 
 	err = h.eventUseCase.PublishEvent(chanID, request)
 	if err != nil {
-		http.Error(w, MsgUnExpectedErr, http.StatusInternalServerError)
+		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
 		return
 	}
 
