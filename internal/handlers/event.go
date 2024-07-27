@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"streamline-sse/internal/entities"
@@ -49,7 +48,6 @@ func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	h.eventUseCase.StreamEvent(ctx, chanID, events)
 
 	if err := sse.Stream(ctx, w, events); err != nil {
-		log.Printf("Error streaming SSE: %v", err)
 		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
 	}
 
