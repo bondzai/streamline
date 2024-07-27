@@ -20,8 +20,8 @@ const (
 )
 
 type EventHandler interface {
-	PatchEvent(w http.ResponseWriter, r *http.Request)
 	StreamEvent(w http.ResponseWriter, r *http.Request)
+	PatchEvent(w http.ResponseWriter, r *http.Request)
 }
 
 type eventHandler struct {
@@ -30,6 +30,20 @@ type eventHandler struct {
 
 func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
 	return &eventHandler{eventUseCase: eventUseCase}
+}
+
+func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
+	toolbox.TrackRoutines()
+
+	chanID := mux.Vars(r)["id"]
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	events := make(chan entities.Event)
+	h.eventUseCase.StreamEvent(ctx, chanID, events)
+
+	sse.Stream(ctx, w, events)
 }
 
 func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
@@ -53,18 +67,4 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
-	toolbox.TrackRoutines()
-
-	chanID := mux.Vars(r)["id"]
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	events := make(chan entities.Event)
-	h.eventUseCase.StreamEvent(ctx, chanID, events)
-
-	sse.StreamSSE(ctx, w, events)
 }
