@@ -40,13 +40,13 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eventID := mux.Vars(r)["id"]
-	if eventID == "" {
+	chanID := mux.Vars(r)["id"]
+	if chanID == "" {
 		http.Error(w, MsgMissingEventId, http.StatusBadRequest)
 		return
 	}
 
-	err = h.eventUseCase.PublishEvent(eventID, request)
+	err = h.eventUseCase.PublishEvent(chanID, request)
 	if err != nil {
 		http.Error(w, MsgUnExpectedErr, http.StatusInternalServerError)
 		return
