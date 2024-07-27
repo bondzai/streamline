@@ -131,7 +131,7 @@ func (r *client) Publish(topic string, message interface{}) error {
 }
 
 func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
-	log.Println("start consume messasge from Kafka broker.")
+	log.Println("start consume message from Kafka broker.")
 
 	messages := make(chan *Message)
 
@@ -146,14 +146,19 @@ func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption in
 	}
 
 	go func() {
-		for {
-			if err := consumerGroupClient.Consume(ctx, topics, consumer); err != nil {
-				log.Printf("Error from consumer: %v", err)
-			}
+		defer close(messages)
 
-			if ctx.Err() != nil {
-				log.Println("kafka context error: ", ctx.Err().Error())
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("context done, stopping Kafka consumer group.")
+				consumerGroupClient.Close()
 				return
+
+			default:
+				if err := consumerGroupClient.Consume(ctx, topics, consumer); err != nil {
+					log.Printf("Error from consumer: %v", err)
+				}
 			}
 		}
 	}()
@@ -162,6 +167,39 @@ func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption in
 
 	return messages, nil
 }
+
+// func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
+// 	log.Println("start consume messasge from Kafka broker.")
+
+// 	messages := make(chan *Message)
+
+// 	consumerGroupClient, err := newConsumerGroup(Config{Brokers: r.brokers}, consumerGroup, offsetOption)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	consumer := &consumerGroupHandler{
+// 		messages:     messages,
+// 		offsetOption: offsetOption,
+// 	}
+
+// 	go func() {
+// 		for {
+// 			if ctx.Err() != nil {
+// 				log.Println("kafka context error: ", ctx.Err().Error())
+// 				return
+// 			}
+
+// 			if err := consumerGroupClient.Consume(ctx, topics, consumer); err != nil {
+// 				log.Printf("Error from consumer: %v", err)
+// 			}
+// 		}
+// 	}()
+
+// 	r.consumerGroup = consumerGroupClient
+
+// 	return messages, nil
+// }
 
 func (r *client) Close() error {
 	if err := r.producer.Close(); err != nil {
