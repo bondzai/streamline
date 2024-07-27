@@ -52,7 +52,7 @@ func main() {
 	})
 
 	go func() {
-		if err := app.Listen(":3001"); err != nil {
+		if err := app.Listen(":" + config.Env.FiberPort); err != nil {
 			log.Fatalf("Fiber server failed to start: %v", err)
 		}
 	}()
@@ -61,9 +61,9 @@ func main() {
 	router.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.StreamEvent).Methods(http.MethodGet)
 	router.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.PatchEvent).Methods(http.MethodPatch)
 
-	serverAddr := ":" + config.Env.AppPort
-	log.Printf("Server listening on %s\n", serverAddr)
-	if err := http.ListenAndServe(serverAddr, router); err != nil {
+	netServerAddress := ":" + config.Env.NetPort
+	log.Printf("Net/http server listening on %s\n", netServerAddress)
+	if err := http.ListenAndServe(netServerAddress, router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

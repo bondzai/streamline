@@ -9,7 +9,8 @@ import (
 var Env config
 
 type config struct {
-	AppPort       string
+	NetPort       string
+	FiberPort     string
 	RedisURL      string
 	RedisUser     string
 	RedisPassword string
@@ -29,7 +30,8 @@ func LoadConfig() error {
 	}
 
 	Env = config{
-		AppPort:       viper.GetString("app.port"),
+		NetPort:       viper.GetString("net.port"),
+		FiberPort:     viper.GetString("fiber.port"),
 		RedisURL:      viper.GetString("redis.host"),
 		RedisUser:     viper.GetString("redis.user"),
 		RedisPassword: viper.GetString("redis.pass"),
