@@ -58,13 +58,13 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	toolbox.TrackRoutines()
 
-	eventID := mux.Vars(r)["id"]
+	chanID := mux.Vars(r)["id"]
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	events := make(chan entities.Event)
-	h.eventUseCase.StreamEventById(ctx, eventID, events)
+	h.eventUseCase.StreamEvent(ctx, chanID, events)
 
 	sse.StreamSSE(ctx, w, events)
 }

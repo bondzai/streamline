@@ -17,7 +17,7 @@ const consumerGroupName = "consumerGroup1"
 type (
 	EventUseCase interface {
 		PublishEvent(channel string, message interface{}) error
-		StreamEventById(ctx context.Context, channel string, events chan<- entities.Event)
+		StreamEvent(ctx context.Context, channel string, events chan<- entities.Event)
 	}
 
 	eventUseCase struct {
@@ -33,7 +33,7 @@ func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEven
 	}
 }
 
-func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, events chan<- entities.Event) {
+func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events chan<- entities.Event) {
 	redisMessageChannel, err := u.subscribeRedisEvent(ctx, channel)
 	if err != nil {
 		close(events)
