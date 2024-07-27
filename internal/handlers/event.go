@@ -3,9 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"runtime"
 
 	"sse-server/internal/entities"
 	"sse-server/internal/usecases"
@@ -51,8 +49,6 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Number of Running Goroutines: %d\n", runtime.NumGoroutine())
-
 	eventID := mux.Vars(r)["id"]
 
 	ctx, cancel := context.WithCancel(r.Context())
