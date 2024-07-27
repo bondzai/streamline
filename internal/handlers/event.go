@@ -13,6 +13,12 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	MsgCanNotParseRequest = "Cannot parse request"
+	MsgMissingEventId     = "Missing event ID"
+	MsgUnExpectedErr      = "Unexpected error"
+)
+
 type EventHandler interface {
 	PatchEvent(w http.ResponseWriter, r *http.Request)
 	StreamEvent(w http.ResponseWriter, r *http.Request)
@@ -30,19 +36,19 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 	var request entities.Event
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		http.Error(w, "Cannot parse request: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, MsgCanNotParseRequest+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	eventID := mux.Vars(r)["id"]
 	if eventID == "" {
-		http.Error(w, "Missing event ID.", http.StatusBadRequest)
+		http.Error(w, MsgMissingEventId, http.StatusBadRequest)
 		return
 	}
 
 	err = h.eventUseCase.PublishEvent(eventID, request)
 	if err != nil {
-		http.Error(w, "Unexpected error", http.StatusInternalServerError)
+		http.Error(w, MsgUnExpectedErr, http.StatusInternalServerError)
 		return
 	}
 
