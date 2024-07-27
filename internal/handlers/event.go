@@ -49,6 +49,7 @@ func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 
 	if err := sse.Stream(ctx, w, events); err != nil {
 		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
+		return
 	}
 
 	toolbox.TrackRoutines()
