@@ -1,4 +1,4 @@
-module sse-server
+module streamline-sse
 
 go 1.22.2
 

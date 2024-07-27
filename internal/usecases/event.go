@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"sse-server/internal/entities"
-	"sse-server/internal/repositories"
-	"sse-server/pkg/kafka"
-	"sse-server/pkg/redis"
+	"streamline-sse/internal/entities"
+	"streamline-sse/internal/repositories"
+	"streamline-sse/pkg/kafka"
+	"streamline-sse/pkg/redis"
 
 	"github.com/bondzai/gogear/toolbox"
 )

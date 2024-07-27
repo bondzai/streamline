@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"context"
-	"sse-server/pkg/redis"
+	"streamline-sse/pkg/redis"
 )
 
 type (
