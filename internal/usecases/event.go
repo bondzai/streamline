@@ -34,13 +34,13 @@ func NewEventUseCase(eventRepo repositories.EventRepository, kafkaEventRepo repo
 }
 
 func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, events chan<- entities.Event) {
-	messageChannel, err := u.subscribeRedisEvent(ctx, channel)
+	redisMessageChannel, err := u.subscribeRedisEvent(ctx, channel)
 	if err != nil {
 		close(events)
 		return
 	}
 
-	kafkaMessageChannel, err := u.subscribeKafkaEvent(ctx, []string{channel})
+	kafkaMessageTopics, err := u.subscribeKafkaEvent(ctx, []string{channel})
 	if err != nil {
 		close(events)
 		return
@@ -56,7 +56,7 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 				log.Println("Stopped receiving messages from source.", channel)
 				return
 
-			case msg, ok := <-messageChannel:
+			case msg, ok := <-redisMessageChannel:
 				if !ok {
 					log.Println("Redis message channel closed.", channel)
 					return
@@ -70,9 +70,9 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 				event.Id = channel
 				events <- event
 
-			case msg, ok := <-kafkaMessageChannel:
+			case msg, ok := <-kafkaMessageTopics:
 				if !ok {
-					log.Println("Redis message channel closed.", channel)
+					log.Println("Kafka message topics closed.", channel)
 					return
 				}
 
