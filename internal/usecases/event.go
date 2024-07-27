@@ -18,7 +18,7 @@ const consumerGroupName = "consumerGroup1"
 type (
 	EventUseCase interface {
 		PublishEvent(channel string, message interface{}) error
-		SubscribeAndStreamEvent(ctx context.Context, channel string, events chan<- entities.Event)
+		SubscribeAndStreamEvent(ctx context.Context, channel string, events chan<- entities.Event) error
 	}
 
 	eventUseCase struct {
@@ -34,22 +34,36 @@ func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEven
 	}
 }
 
-func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel string, events chan<- entities.Event) {
+func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel string, events chan<- entities.Event) error {
 	redisCh, err := u.subscribeRedisEvent(ctx, channel)
 	if err != nil {
 		log.Printf("Error subscribing to Redis events for channel %s: %v", channel, err)
-		close(events)
-		return
+		return err
 	}
 
 	kafkaCh, err := u.subscribeKafkaEvent(ctx, []string{channel})
 	if err != nil {
 		log.Printf("Error subscribing to Kafka events for channel %s: %v", channel, err)
-		close(events)
-		return
+		return err
 	}
 
-	go u.streamEvent(ctx, channel, redisCh, kafkaCh, events)
+	errCh := make(chan error, 1)
+	go u.streamEvent(ctx, channel, redisCh, kafkaCh, events, errCh)
+
+	// Wait for the goroutine to report an error or complete
+	select {
+	case err := <-errCh:
+		if err != nil {
+			log.Printf("Error streaming events for channel %s: %v", channel, err)
+			return err
+		}
+
+	case <-ctx.Done():
+		log.Printf("Context canceled while streaming events for channel %s", channel)
+		return ctx.Err()
+	}
+
+	return nil
 }
 
 func (u *eventUseCase) streamEvent(
@@ -58,8 +72,10 @@ func (u *eventUseCase) streamEvent(
 	redisCh <-chan *redis.Message,
 	kafkaCh <-chan *kafka.Message,
 	events chan<- entities.Event,
+	errCh chan<- error,
 ) {
-	defer close(events)
+	defer close(errCh)
+
 	events <- entities.Event{
 		Id:      channel,
 		Message: nil,
@@ -69,25 +85,30 @@ func (u *eventUseCase) streamEvent(
 		select {
 		case <-ctx.Done():
 			log.Printf("Context canceled, stopping event stream for channel %s", channel)
+			errCh <- ctx.Err()
 			return
 
 		case msg, ok := <-redisCh:
 			if !ok {
 				log.Printf("Redis channel closed for channel %s", channel)
+				errCh <- nil
 				return
 			}
 			if err := u.processRedisMessage(msg, channel, events); err != nil {
-				log.Printf("Stopping event stream for channel %s due to error: %v", channel, err)
+				log.Printf("Error processing Redis message for channel %s: %v", channel, err)
+				errCh <- err
 				return
 			}
 
 		case msg, ok := <-kafkaCh:
 			if !ok {
 				log.Printf("Kafka topic closed for channel %s", channel)
+				errCh <- nil
 				return
 			}
 			if err := u.processKafkaMessage(msg); err != nil {
-				log.Printf("Stopping event stream for channel %s due to error: %v", channel, err)
+				log.Printf("Error processing Kafka message for channel %s: %v", channel, err)
+				errCh <- err
 				return
 			}
 		}
