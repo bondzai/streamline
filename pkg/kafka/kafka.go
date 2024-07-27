@@ -131,6 +131,8 @@ func (r *client) Publish(topic string, message interface{}) error {
 }
 
 func (r *client) Subscribe(topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
+	log.Println("start consume messasge from Kafka broker.")
+
 	messages := make(chan *Message)
 	ctx := context.Background()
 
@@ -151,6 +153,7 @@ func (r *client) Subscribe(topics []string, offsetOption int, consumerGroup stri
 			}
 
 			if ctx.Err() != nil {
+				log.Println("kafka context error: ", ctx.Err().Error())
 				return
 			}
 		}

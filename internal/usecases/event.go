@@ -8,6 +8,8 @@ import (
 	"sse-server/internal/repositories"
 	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
+
+	"github.com/bondzai/gogear/toolbox"
 )
 
 const consumerGroupName = "consumerGroup1"
@@ -38,6 +40,12 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 		return
 	}
 
+	kafkaMessageChannel, err := u.subscribeKafkaEvent([]string{channel})
+	if err != nil {
+		close(events)
+		return
+	}
+
 	go func() {
 		var event entities.Event
 		events <- event
@@ -61,6 +69,16 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 
 				event.Id = channel
 				events <- event
+
+			case msg, ok := <-kafkaMessageChannel:
+				if !ok {
+					log.Println("Redis message channel closed.", channel)
+					return
+				}
+
+				log.Println("kafka message")
+				toolbox.PPrint(msg)
+				log.Println("")
 			}
 		}
 	}()
