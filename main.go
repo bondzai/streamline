@@ -17,7 +17,7 @@ import (
 func init() {
 	err := config.LoadConfig()
 	if err != nil {
-		log.Println(err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 }
 
