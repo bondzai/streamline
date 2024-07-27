@@ -40,9 +40,9 @@ func main() {
 	}
 	defer kafkaClient.Close()
 
-	kafkaEventRepo := repositories.KafkaEventRepository(kafkaClient)
-	eventRepo := repositories.NewEventRepository(redisClient)
-	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
+	kafkaEventRepo := repositories.NewKafkaEventRepository(kafkaClient)
+	redisEventRepo := repositories.NewRedisEventRepository(redisClient)
+	eventUseCase := usecases.NewEventUseCase(redisEventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
 
 	app := fiber.New()

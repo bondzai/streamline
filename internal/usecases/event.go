@@ -21,14 +21,14 @@ type (
 	}
 
 	eventUseCase struct {
-		eventRepo      repositories.EventRepository
+		redisEventRepo repositories.RedisEventRepository
 		kafkaEventRepo repositories.KafkaEventRepository
 	}
 )
 
-func NewEventUseCase(eventRepo repositories.EventRepository, kafkaEventRepo repositories.KafkaEventRepository) EventUseCase {
+func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEventRepo repositories.KafkaEventRepository) EventUseCase {
 	return &eventUseCase{
-		eventRepo:      eventRepo,
+		redisEventRepo: redisEventRepo,
 		kafkaEventRepo: kafkaEventRepo,
 	}
 }
@@ -83,7 +83,7 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 }
 
 func (u *eventUseCase) subscribeRedisEvent(ctx context.Context, channel string) (<-chan *redis.Message, error) {
-	messageChannel, err := u.eventRepo.Subscribe(ctx, channel)
+	messageChannel, err := u.redisEventRepo.Subscribe(ctx, channel)
 	if err != nil {
 		log.Println("Subscribe Redis event error: ", err)
 		return nil, err
@@ -109,15 +109,15 @@ func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
 		return err
 	}
 
-	err = u.eventRepo.Publish(channel, jsonMessage)
+	err = u.redisEventRepo.Publish(channel, jsonMessage)
 	if err != nil {
-		log.Println("Publish event error: ", err)
+		log.Println("Publish event to Redis error: ", err)
 		return err
 	}
 
 	err = u.kafkaEventRepo.Publish(channel, message)
 	if err != nil {
-		log.Println("Publish event to kafka error: ", err)
+		log.Println("Publish event to Kafka error: ", err)
 	}
 
 	return nil
