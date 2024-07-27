@@ -43,9 +43,9 @@ func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	events := make(chan entities.Event)
-	defer close(events)
 
-	h.eventUseCase.StreamEvent(ctx, chanID, events)
+	// The use case is responsible for closing the 'events' channel
+	h.eventUseCase.SubscribeAndStreamEvent(ctx, chanID, events)
 
 	if err := sse.Stream(ctx, w, events); err != nil {
 		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
