@@ -77,7 +77,7 @@ func (u *eventUseCase) streamEvent(
 				return
 			}
 			if err := u.processRedisMessage(msg, channel, events); err != nil {
-				log.Printf("Stopping event stream for channel %s due to error", channel)
+				log.Printf("Stopping event stream for channel %s due to error: %v", channel, err)
 				return
 			}
 
@@ -87,7 +87,7 @@ func (u *eventUseCase) streamEvent(
 				return
 			}
 			if err := u.processKafkaMessage(msg); err != nil {
-				log.Printf("Stopping event stream for channel %s due to error", channel)
+				log.Printf("Stopping event stream for channel %s due to error: %v", channel, err)
 				return
 			}
 		}
