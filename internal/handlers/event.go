@@ -9,6 +9,7 @@ import (
 	"sse-server/internal/usecases"
 	"sse-server/pkg/sse"
 
+	"github.com/bondzai/gogear/toolbox"
 	"github.com/gorilla/mux"
 )
 
@@ -49,6 +50,8 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
+	toolbox.TrackRoutines()
+
 	eventID := mux.Vars(r)["id"]
 
 	ctx, cancel := context.WithCancel(r.Context())
