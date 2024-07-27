@@ -3,8 +3,8 @@ package sse
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"reflect"
 )
@@ -21,14 +21,16 @@ const (
 	TransferEncodingValue  = "chunked"
 )
 
-// Log messages for various events and errors.
-const (
-	MsgErrorEncodingEventData = "SSE error encoding event data"
-	MsgErrorWritingToClient   = "SSE error writing to client"
-	MsgResponseWriterError    = "SSE response writer does not support flushing"
-	MsgEventChannelClosed     = "SSE event channel closed"
-	MsgClientConnectionClosed = "SSE client connection closed"
+// Error messages for various events and errors.
+var (
+	ErrResponseWriterNotFlushable = errors.New("response writer does not support flushing")
 )
+
+// responseWriter abstracts http.ResponseWriter and http.Flusher.
+type responseWriter interface {
+	http.ResponseWriter
+	http.Flusher
+}
 
 // setSSEHeaders sets the necessary headers for Server-Sent Events.
 func setSSEHeaders(w http.ResponseWriter) {
@@ -36,13 +38,6 @@ func setSSEHeaders(w http.ResponseWriter) {
 	w.Header().Set(CacheControlHeader, CacheControlValue)
 	w.Header().Set(ConnectionHeader, ConnectionValue)
 	w.Header().Set(TransferEncodingHeader, TransferEncodingValue)
-}
-
-// logError logs errors with a consistent format.
-func logError(message string, err error) {
-	if err != nil {
-		log.Printf("ERROR: %s: %v", message, err)
-	}
 }
 
 // isEmptySliceOrArray checks if the given event is an empty slice or array.
@@ -60,22 +55,22 @@ func validateData[T any](event T) ([]byte, error) {
 }
 
 // sendResponse handles sending the response to the client and flushing.
-func sendResponse(w http.ResponseWriter, flusher http.Flusher, data []byte) {
+func sendResponse(w responseWriter, data []byte) error {
 	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-		logError(MsgErrorWritingToClient, err)
-		return
+		return err
 	}
-	flusher.Flush()
+	w.Flush()
+	return nil
 }
 
-// StreamSSE handles Server-Sent Events for the given context and events channel.
+// Stream handles Server-Sent Events for the given context and events channel.
 // It streams events from the provided channel to the HTTP response writer.
-func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
+func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) error {
 	setSSEHeaders(w)
 
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := w.(responseWriter)
 	if !ok {
-		log.Fatal(MsgResponseWriterError)
+		return ErrResponseWriterNotFlushable
 	}
 	flusher.Flush()
 
@@ -83,21 +78,23 @@ func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
 		select {
 		case event, ok := <-events:
 			if !ok {
-				log.Println(MsgEventChannelClosed)
-				return
+				return nil // Channel closed gracefully
 			}
 
 			data, err := validateData(event)
 			if err != nil {
-				logError(MsgErrorEncodingEventData, err)
-				continue
+				return fmt.Errorf("encoding event data: %w", err)
 			}
 
-			sendResponse(w, flusher, data)
+			if err := sendResponse(flusher, data); err != nil {
+				return fmt.Errorf("writing to client: %w", err)
+			}
 
 		case <-ctx.Done():
-			log.Println(MsgClientConnectionClosed)
-			return
+			if ctx.Err() == context.Canceled {
+				return nil // Normal termination when context is canceled
+			}
+			return ctx.Err()
 		}
 	}
 }
