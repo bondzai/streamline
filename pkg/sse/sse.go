@@ -70,7 +70,7 @@ func sendResponse(w http.ResponseWriter, flusher http.Flusher, data []byte) {
 
 // StreamSSE handles Server-Sent Events for the given context and events channel.
 // It streams events from the provided channel to the HTTP response writer.
-func StreamSSE[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
+func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) {
 	setSSEHeaders(w)
 
 	flusher, ok := w.(http.Flusher)
