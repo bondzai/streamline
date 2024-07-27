@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+
 	"streamline-sse/internal/entities"
 	"streamline-sse/internal/repositories"
 	"streamline-sse/pkg/kafka"
