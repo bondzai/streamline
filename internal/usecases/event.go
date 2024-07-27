@@ -121,6 +121,7 @@ func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
 	err = u.kafkaEventRepo.Publish(channel, message)
 	if err != nil {
 		log.Println("Publish event to Kafka error: ", err)
+		return err
 	}
 
 	return nil
