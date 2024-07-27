@@ -28,7 +28,7 @@ func main() {
 		DB:       config.Env.RedisDatabase,
 	})
 	if err != nil {
-		log.Fatalf("Failed to setup Redis: %v", err)
+		log.Fatalf("Failed to setup Redis client: %v", err)
 	}
 	defer redisClient.Close()
 
