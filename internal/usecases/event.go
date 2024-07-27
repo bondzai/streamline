@@ -18,7 +18,7 @@ const consumerGroupName = "consumerGroup1"
 type (
 	EventUseCase interface {
 		PublishEvent(channel string, message interface{}) error
-		StreamEvent(ctx context.Context, channel string, events chan<- entities.Event)
+		SubscribeAndStreamEvent(ctx context.Context, channel string, events chan<- entities.Event)
 	}
 
 	eventUseCase struct {
@@ -34,7 +34,7 @@ func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEven
 	}
 }
 
-func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events chan<- entities.Event) {
+func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel string, events chan<- entities.Event) {
 	redisCh, err := u.subscribeRedisEvent(ctx, channel)
 	if err != nil {
 		log.Printf("Error subscribing to Redis events for channel %s: %v", channel, err)
@@ -49,11 +49,17 @@ func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events c
 		return
 	}
 
-	go u.handleEvents(ctx, channel, redisCh, kafkaCh, events)
+	go u.streamEvent(ctx, channel, redisCh, kafkaCh, events)
 }
 
-func (u *eventUseCase) handleEvents(ctx context.Context, channel string, redisCh <-chan *redis.Message, kafkaCh <-chan *kafka.Message, events chan<- entities.Event) {
-	// Send initial connect event
+func (u *eventUseCase) streamEvent(
+	ctx context.Context,
+	channel string,
+	redisCh <-chan *redis.Message,
+	kafkaCh <-chan *kafka.Message,
+	events chan<- entities.Event,
+) {
+	defer close(events)
 	events <- entities.Event{
 		Id:      channel,
 		Message: nil,
