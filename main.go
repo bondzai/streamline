@@ -57,13 +57,13 @@ func main() {
 		}
 	}()
 
-	r := mux.NewRouter()
-	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.StreamEvent).Methods(http.MethodGet)
-	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.PatchEvent).Methods(http.MethodPatch)
+	router := mux.NewRouter()
+	router.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.StreamEvent).Methods(http.MethodGet)
+	router.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.PatchEvent).Methods(http.MethodPatch)
 
 	serverAddr := ":" + config.Env.AppPort
 	log.Printf("Server listening on %s\n", serverAddr)
-	if err := http.ListenAndServe(serverAddr, r); err != nil {
+	if err := http.ListenAndServe(serverAddr, router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
