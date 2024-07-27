@@ -10,6 +10,7 @@ import (
 	"sse-server/pkg/kafka"
 	"sse-server/pkg/redis"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/mux"
 )
 
@@ -43,6 +44,18 @@ func main() {
 	eventRepo := repositories.NewEventRepository(redisClient)
 	eventUseCase := usecases.NewEventUseCase(eventRepo, kafkaEventRepo)
 	eventHandler := handlers.NewEventHandler(eventUseCase)
+
+	app := fiber.New()
+
+	app.Get("/api/v1/fiber", func(c *fiber.Ctx) error {
+		return c.SendString("Response from Fiber!")
+	})
+
+	go func() {
+		if err := app.Listen(":3001"); err != nil {
+			log.Fatalf("Fiber server failed to start: %v", err)
+		}
+	}()
 
 	r := mux.NewRouter()
 	r.HandleFunc("/api/v1/event/{id:[^/]+}", eventHandler.StreamEvent).Methods(http.MethodGet)
