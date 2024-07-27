@@ -36,12 +36,14 @@ func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEven
 func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events chan<- entities.Event) {
 	redisMessageChannel, err := u.subscribeRedisEvent(ctx, channel)
 	if err != nil {
+		log.Println("Error subscribe event from Redis: ", err)
 		close(events)
 		return
 	}
 
 	kafkaMessageTopics, err := u.subscribeKafkaEvent(ctx, []string{channel})
 	if err != nil {
+		log.Println("Error subscribe event from Kafka: ", err)
 		close(events)
 		return
 	}
@@ -53,17 +55,17 @@ func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events c
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("Stopped receiving messages from source.", channel)
+				log.Println("Stopped receiving messages from source: ", channel)
 				return
 
 			case msg, ok := <-redisMessageChannel:
 				if !ok {
-					log.Println("Redis message channel closed.", channel)
+					log.Println("Redis message channel closed: ", channel)
 					return
 				}
 
 				if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-					log.Printf("Error unmarshaling message from Redis: %v", err)
+					log.Println("Error unmarshaling message from Redis: ", err)
 					continue
 				}
 
@@ -72,7 +74,7 @@ func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events c
 
 			case msg, ok := <-kafkaMessageTopics:
 				if !ok {
-					log.Println("Kafka message topics closed.", channel)
+					log.Println("Kafka message topics closed: ", channel)
 					return
 				}
 
