@@ -40,7 +40,7 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 		return
 	}
 
-	kafkaMessageChannel, err := u.subscribeKafkaEvent([]string{channel})
+	kafkaMessageChannel, err := u.subscribeKafkaEvent(ctx, []string{channel})
 	if err != nil {
 		close(events)
 		return
@@ -94,8 +94,8 @@ func (u *eventUseCase) subscribeRedisEvent(ctx context.Context, channel string) 
 	return messageChannel, nil
 }
 
-func (u *eventUseCase) subscribeKafkaEvent(topic []string) (<-chan *kafka.Message, error) {
-	messageTopic, err := u.kafkaEventRepo.Subscribe(topic, 0, consumerGroupName)
+func (u *eventUseCase) subscribeKafkaEvent(ctx context.Context, topic []string) (<-chan *kafka.Message, error) {
+	messageTopic, err := u.kafkaEventRepo.Subscribe(ctx, topic, 0, consumerGroupName)
 	if err != nil {
 		log.Println("Subscribe kafka event error: ", err)
 		return nil, err

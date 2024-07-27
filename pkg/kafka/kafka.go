@@ -18,7 +18,7 @@ const (
 type (
 	Client interface {
 		Publish(topic string, message interface{}) error
-		Subscribe(topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error)
+		Subscribe(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error)
 		Close() error
 	}
 
@@ -130,11 +130,10 @@ func (r *client) Publish(topic string, message interface{}) error {
 	return err
 }
 
-func (r *client) Subscribe(topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
+func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
 	log.Println("start consume messasge from Kafka broker.")
 
 	messages := make(chan *Message)
-	ctx := context.Background()
 
 	consumerGroupClient, err := newConsumerGroup(Config{Brokers: r.brokers}, consumerGroup, offsetOption)
 	if err != nil {
