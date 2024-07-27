@@ -53,7 +53,7 @@ func (u *eventUseCase) StreamEvent(ctx context.Context, channel string, events c
 }
 
 func (u *eventUseCase) handleEvents(ctx context.Context, channel string, redisCh <-chan *redis.Message, kafkaCh <-chan *kafka.Message, events chan<- entities.Event) {
-	//handle on connect
+	// Send initial connect event
 	events <- entities.Event{
 		Id:      channel,
 		Message: nil,
@@ -70,30 +70,40 @@ func (u *eventUseCase) handleEvents(ctx context.Context, channel string, redisCh
 				log.Printf("Redis channel closed for channel %s", channel)
 				return
 			}
-			u.processRedisMessage(msg, channel, events)
+			if err := u.processRedisMessage(msg, channel, events); err != nil {
+				log.Printf("Stopping event stream for channel %s due to error", channel)
+				return
+			}
 
 		case msg, ok := <-kafkaCh:
 			if !ok {
 				log.Printf("Kafka topic closed for channel %s", channel)
 				return
 			}
-			u.processKafkaMessage(msg)
+			if err := u.processKafkaMessage(msg); err != nil {
+				log.Printf("Stopping event stream for channel %s due to error", channel)
+				return
+			}
 		}
 	}
 }
 
-func (u *eventUseCase) processRedisMessage(msg *redis.Message, channel string, events chan<- entities.Event) {
+func (u *eventUseCase) processRedisMessage(msg *redis.Message, channel string, events chan<- entities.Event) error {
 	var event entities.Event
 	if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
 		log.Printf("Error unmarshaling Redis message for channel %s: %v", channel, err)
-		return
+		return err
 	}
+
 	event.Id = channel
 	events <- event
+
+	return nil
 }
 
-func (u *eventUseCase) processKafkaMessage(msg *kafka.Message) {
+func (u *eventUseCase) processKafkaMessage(msg *kafka.Message) error {
 	toolbox.PPrint(msg)
+	return nil
 }
 
 func (u *eventUseCase) subscribeRedisEvent(ctx context.Context, channel string) (<-chan *redis.Message, error) {
