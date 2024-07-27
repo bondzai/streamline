@@ -76,9 +76,7 @@ func (u *eventUseCase) StreamEventById(ctx context.Context, channel string, even
 					return
 				}
 
-				log.Println("kafka message")
 				toolbox.PPrint(msg)
-				log.Println("")
 			}
 		}
 	}()
