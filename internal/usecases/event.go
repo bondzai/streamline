@@ -34,21 +34,21 @@ func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEven
 	}
 }
 
-func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel string, eventCh chan<- entities.Event) error {
-	redisCh, err := u.subscribeRedisEvent(ctx, channel)
+func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, chName string, eventCh chan<- entities.Event) error {
+	redisCh, err := u.redisEventRepo.Subscribe(ctx, chName)
 	if err != nil {
-		log.Printf("Error subscribing to Redis events for channel %s: %v", channel, err)
+		log.Printf("Error subscribing to Redis events for channel %s: %v", chName, err)
 		return err
 	}
 
-	kafkaCh, err := u.subscribeKafkaEvent(ctx, []string{channel})
+	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chName}, 0, consumerGroupName)
 	if err != nil {
-		log.Printf("Error subscribing to Kafka events for channel %s: %v", channel, err)
+		log.Printf("Error subscribing to Kafka events for channel %s: %v", chName, err)
 		return err
 	}
 
-	if err := u.streamEvent(ctx, channel, redisCh, kafkaCh, eventCh); err != nil {
-		log.Printf("Error streaming events for channel %s: %v", channel, err)
+	if err := u.streamEvent(ctx, chName, redisCh, kafkaCh, eventCh); err != nil {
+		log.Printf("Error streaming events for channel %s: %v", chName, err)
 		return err
 	}
 
@@ -57,7 +57,7 @@ func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel stri
 
 func (u *eventUseCase) streamEvent(
 	ctx context.Context,
-	channel string,
+	chName string,
 	redisCh <-chan *redis.Message,
 	kafkaCh <-chan *kafka.Message,
 	eventCh chan<- entities.Event,
@@ -72,27 +72,27 @@ func (u *eventUseCase) streamEvent(
 		}()
 
 		eventCh <- entities.Event{
-			Id:      channel,
+			Id:      chName,
 			Message: nil,
 		}
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Context canceled, stopping event stream for channel %s", channel)
+				log.Printf("Context canceled, stopping event stream for channel %s", chName)
 				errCh <- ctx.Err()
 				return
 
 			case msg, ok := <-redisCh:
 				if !ok {
-					log.Printf("Redis channel closed for channel %s", channel)
+					log.Printf("Redis channel closed for channel %s", chName)
 					errCh <- nil
 					return
 				}
 
-				event, err := u.processRedisMessage(msg, channel)
+				event, err := u.processRedisMessage(msg, chName)
 				if err != nil {
-					log.Printf("Error processing Redis message for channel %s: %v", channel, err)
+					log.Printf("Error processing Redis message for channel %s: %v", chName, err)
 					errCh <- err
 					return
 				}
@@ -100,13 +100,13 @@ func (u *eventUseCase) streamEvent(
 
 			case msg, ok := <-kafkaCh:
 				if !ok {
-					log.Printf("Kafka topic closed for channel %s", channel)
+					log.Printf("Kafka topic closed for channel %s", chName)
 					errCh <- nil
 					return
 				}
 
 				if err := u.processKafkaMessage(msg); err != nil {
-					log.Printf("Error processing Kafka message for channel %s: %v", channel, err)
+					log.Printf("Error processing Kafka message for channel %s: %v", chName, err)
 					errCh <- err
 					return
 				}
@@ -128,12 +128,12 @@ func (u *eventUseCase) streamEvent(
 	}
 }
 
-func (u *eventUseCase) processRedisMessage(msg *redis.Message, channel string) (*entities.Event, error) {
+func (u *eventUseCase) processRedisMessage(msg *redis.Message, chName string) (*entities.Event, error) {
 	var event entities.Event
-	event.Id = channel
+	event.Id = chName
 
 	if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-		log.Printf("Error unmarshaling Redis message for channel %s: %v", channel, err)
+		log.Printf("Error unmarshaling Redis message for channel %s: %v", chName, err)
 		return nil, err
 	}
 
@@ -145,28 +145,20 @@ func (u *eventUseCase) processKafkaMessage(msg *kafka.Message) error {
 	return nil
 }
 
-func (u *eventUseCase) subscribeRedisEvent(ctx context.Context, channel string) (<-chan *redis.Message, error) {
-	return u.redisEventRepo.Subscribe(ctx, channel)
-}
-
-func (u *eventUseCase) subscribeKafkaEvent(ctx context.Context, topics []string) (<-chan *kafka.Message, error) {
-	return u.kafkaEventRepo.Subscribe(ctx, topics, 0, consumerGroupName)
-}
-
-func (u *eventUseCase) PublishEvent(channel string, message interface{}) error {
+func (u *eventUseCase) PublishEvent(chName string, message interface{}) error {
 	jsonMessage, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Error marshaling message for channel %s: %v", channel, err)
+		log.Printf("Error marshaling message for channel %s: %v", chName, err)
 		return err
 	}
 
-	if err := u.redisEventRepo.Publish(channel, jsonMessage); err != nil {
-		log.Printf("Error publishing to Redis for channel %s: %v", channel, err)
+	if err := u.redisEventRepo.Publish(chName, jsonMessage); err != nil {
+		log.Printf("Error publishing to Redis for channel %s: %v", chName, err)
 		return err
 	}
 
-	if err := u.kafkaEventRepo.Publish(channel, message); err != nil {
-		log.Printf("Error publishing to Kafka for channel %s: %v", channel, err)
+	if err := u.kafkaEventRepo.Publish(chName, message); err != nil {
+		log.Printf("Error publishing to Kafka for channel %s: %v", chName, err)
 		return err
 	}
 
