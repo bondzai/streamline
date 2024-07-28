@@ -64,7 +64,8 @@ func (u *eventUseCase) streamEvent(
 ) error {
 	errCh := make(chan error, 1)
 
-	go func() {
+	// Stream processing function
+	processStreams := func() {
 		defer func() {
 			close(errCh)
 			close(eventCh)
@@ -111,16 +112,15 @@ func (u *eventUseCase) streamEvent(
 				}
 			}
 		}
-	}()
+	}
+
+	go processStreams()
 
 	select {
 	case err := <-errCh:
 		return err
 
 	case <-ctx.Done():
-		if ctx.Err() == context.Canceled {
-			return nil
-		}
 		return ctx.Err()
 
 	default:
