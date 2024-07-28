@@ -78,7 +78,7 @@ func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) er
 		select {
 		case event, ok := <-events:
 			if !ok {
-				return nil // Channel closed gracefully
+				return nil
 			}
 
 			data, err := validateData(event)
@@ -92,7 +92,7 @@ func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) er
 
 		case <-ctx.Done():
 			if ctx.Err() == context.Canceled {
-				return nil // Normal termination when context is canceled
+				return nil
 			}
 			return ctx.Err()
 		}
