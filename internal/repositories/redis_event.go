@@ -8,8 +8,8 @@ import (
 
 type (
 	RedisEventRepository interface {
-		Publish(channel string, message interface{}) error
-		Subscribe(ctx context.Context, channel string) (<-chan *redis.Message, error)
+		Publish(chName string, message interface{}) error
+		Subscribe(ctx context.Context, chName string) (<-chan *redis.Message, error)
 	}
 
 	redisEventRepository struct {
@@ -23,10 +23,10 @@ func NewRedisEventRepository(client redis.Client) RedisEventRepository {
 	}
 }
 
-func (r *redisEventRepository) Publish(channel string, message interface{}) error {
-	return r.client.Publish(channel, message)
+func (r *redisEventRepository) Publish(chName string, message interface{}) error {
+	return r.client.Publish(chName, message)
 }
 
-func (r *redisEventRepository) Subscribe(ctx context.Context, channel string) (<-chan *redis.Message, error) {
-	return r.client.Subscribe(ctx, channel)
+func (r *redisEventRepository) Subscribe(ctx context.Context, chName string) (<-chan *redis.Message, error) {
+	return r.client.Subscribe(ctx, chName)
 }
