@@ -3,6 +3,6 @@
     "SourceDir": ["."],
     "SourceExt": [".c", ".cpp", ".go", ".h"],
     "BuildCmd": "go build -o bin/main ./cmd/main.go",
-    "RunCmd": "./bin/cmd/main",
+    "RunCmd": "./bin/main",
     "Decreasing": 1
 }
