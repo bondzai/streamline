@@ -118,6 +118,9 @@ func (u *eventUseCase) streamEvent(
 		return err
 
 	case <-ctx.Done():
+		if ctx.Err() == context.Canceled {
+			return nil
+		}
 		return ctx.Err()
 
 	default:
