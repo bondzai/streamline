@@ -33,8 +33,8 @@ func NewEventHandler(eventUseCase usecases.EventUseCase) EventHandler {
 }
 
 func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
-	chanID := mux.Vars(r)["id"]
-	if chanID == "" {
+	chID := mux.Vars(r)["id"]
+	if chID == "" {
 		http.Error(w, MsgMissingEventID, http.StatusBadRequest)
 		return
 	}
@@ -42,15 +42,15 @@ func (h *eventHandler) StreamEvent(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	events := make(chan entities.Event)
+	eventCh := make(chan entities.Event)
 
-	// The use case is responsible for closing the 'events' channel
-	if err := h.eventUseCase.SubscribeAndStreamEvent(ctx, chanID, events); err != nil {
+	// The use case is responsible for closing the 'eventCh' channel
+	if err := h.eventUseCase.SubscribeAndStreamEvent(ctx, chID, eventCh); err != nil {
 		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
 		return
 	}
 
-	if err := sse.Stream(ctx, w, events); err != nil {
+	if err := sse.Stream(ctx, w, eventCh); err != nil {
 		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
 		return
 	}
@@ -66,13 +66,13 @@ func (h *eventHandler) PatchEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chanID := mux.Vars(r)["id"]
-	if chanID == "" {
+	chID := mux.Vars(r)["id"]
+	if chID == "" {
 		http.Error(w, MsgMissingEventID, http.StatusBadRequest)
 		return
 	}
 
-	err = h.eventUseCase.PublishEvent(chanID, request)
+	err = h.eventUseCase.PublishEvent(chID, request)
 	if err != nil {
 		http.Error(w, MsgUnexpectedErr, http.StatusInternalServerError)
 		return
