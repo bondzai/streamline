@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"log"
 	"time"
@@ -10,7 +11,8 @@ import (
 )
 
 const (
-	Timeout          = 1
+	Timeout = 1
+
 	OffsetFromLatest = iota
 	OffsetFromEarliest
 )
@@ -38,10 +40,11 @@ type (
 	}
 
 	Config struct {
-		Brokers  []string
-		Username string
-		Password string
-		UseTLS   bool
+		Brokers   []string
+		Username  string
+		Password  string
+		UseTLS    bool
+		TLSConfig *tls.Config // Optional custom TLS configuration
 	}
 )
 
@@ -59,9 +62,8 @@ func NewClient(config Config) (Client, error) {
 	}, nil
 }
 
-func newProducer(config Config) (sarama.SyncProducer, error) {
+func newSaramaConfig(config Config) *sarama.Config {
 	kafkaConfig := sarama.NewConfig()
-	kafkaConfig.Producer.Return.Successes = true
 
 	if config.Username != "" && config.Password != "" {
 		kafkaConfig.Net.SASL.Enable = true
@@ -72,7 +74,16 @@ func newProducer(config Config) (sarama.SyncProducer, error) {
 
 	if config.UseTLS {
 		kafkaConfig.Net.TLS.Enable = true
+		kafkaConfig.Net.TLS.Config = config.TLSConfig
 	}
+
+	return kafkaConfig
+}
+
+// newProducer creates a new Kafka sync producer.
+func newProducer(config Config) (sarama.SyncProducer, error) {
+	kafkaConfig := newSaramaConfig(config)
+	kafkaConfig.Producer.Return.Successes = true
 
 	producer, err := sarama.NewSyncProducer(config.Brokers, kafkaConfig)
 	if err != nil {
@@ -82,8 +93,9 @@ func newProducer(config Config) (sarama.SyncProducer, error) {
 	return producer, nil
 }
 
+// newConsumerGroup creates a new Kafka consumer group.
 func newConsumerGroup(config Config, group string, offsetOption int) (sarama.ConsumerGroup, error) {
-	kafkaConfig := sarama.NewConfig()
+	kafkaConfig := newSaramaConfig(config)
 	kafkaConfig.Consumer.Return.Errors = true
 
 	switch offsetOption {
@@ -91,17 +103,8 @@ func newConsumerGroup(config Config, group string, offsetOption int) (sarama.Con
 		kafkaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
 	case OffsetFromEarliest:
 		kafkaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
-	}
-
-	if config.Username != "" && config.Password != "" {
-		kafkaConfig.Net.SASL.Enable = true
-		kafkaConfig.Net.SASL.User = config.Username
-		kafkaConfig.Net.SASL.Password = config.Password
-		kafkaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
-	}
-
-	if config.UseTLS {
-		kafkaConfig.Net.TLS.Enable = true
+	default:
+		kafkaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
 	}
 
 	consumerGroup, err := sarama.NewConsumerGroup(config.Brokers, group, kafkaConfig)
@@ -152,7 +155,6 @@ func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption in
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("context done, stopping Kafka consumer group.")
 				return
 
 			default:
