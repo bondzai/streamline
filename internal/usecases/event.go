@@ -15,8 +15,8 @@ import (
 
 const (
 	consumerGroupName = "consumerGroup1"
-	kafkaOffSetOption = 0
 
+	errCtxDone        = "Error Context canceled, stopping event stream for channel %s"
 	errSubscribeRedis = "Error subscribing to Redis events for channel %s: %v"
 	errSubscribeKafka = "Error subscribing to Kafka events for channel %s: %v"
 	errStreamEvent    = "Error streaming events for channel %s: %v"
@@ -55,7 +55,7 @@ func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, chName strin
 		return err
 	}
 
-	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chName}, kafkaOffSetOption, consumerGroupName)
+	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chName}, kafka.OffsetFromLatest, consumerGroupName)
 	if err != nil {
 		log.Printf(errSubscribeKafka, chName, err)
 		return err
@@ -92,7 +92,7 @@ func (u *eventUseCase) streamEvent(
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Context canceled, stopping event stream for channel %s", chName)
+				log.Printf(errCtxDone, chName)
 				errCh <- ctx.Err()
 				return
 
@@ -150,11 +150,7 @@ func (u *eventUseCase) processRedisMessage(msg *redis.Message, event entities.Ev
 }
 
 func (u *eventUseCase) processKafkaMessage(msg *kafka.Message) error {
-	// Implement processing of Kafka message here
-	// For now, just print the message
-	log.Println("Received Kafka message")
 	toolbox.PPrint(msg)
-
 	return nil
 }
 
