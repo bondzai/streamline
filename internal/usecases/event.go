@@ -31,7 +31,7 @@ const (
 type (
 	EventUseCase interface {
 		PublishEvent(channel string, message interface{}) error
-		SubscribeAndStreamEvent(ctx context.Context, channel string, eventCh chan<- entities.Event) error
+		SubscribeAndStreamEvent(ctx context.Context, chName string, eventCh chan<- entities.Event) error
 	}
 
 	eventUseCase struct {
