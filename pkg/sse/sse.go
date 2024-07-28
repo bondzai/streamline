@@ -65,7 +65,7 @@ func sendResponse(w responseWriter, data []byte) error {
 
 // Stream handles Server-Sent Events for the given context and events channel.
 // It streams events from the provided channel to the HTTP response writer.
-func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) error {
+func Stream[T any](ctx context.Context, w http.ResponseWriter, eventCh chan T) error {
 	setSSEHeaders(w)
 
 	flusher, ok := w.(responseWriter)
@@ -76,7 +76,7 @@ func Stream[T any](ctx context.Context, w http.ResponseWriter, events chan T) er
 
 	for {
 		select {
-		case event, ok := <-events:
+		case event, ok := <-eventCh:
 			if !ok {
 				return nil
 			}
