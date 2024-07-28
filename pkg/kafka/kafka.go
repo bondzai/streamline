@@ -19,8 +19,8 @@ const (
 
 type (
 	Client interface {
-		Publish(topic string, message interface{}) error
-		Subscribe(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error)
+		Produce(topic string, message interface{}) error
+		Consume(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error)
 		Close() error
 	}
 
@@ -115,7 +115,7 @@ func newConsumerGroup(config Config, group string, offsetOption int) (sarama.Con
 	return consumerGroup, nil
 }
 
-func (r *client) Publish(topic string, message interface{}) error {
+func (r *client) Produce(topic string, message interface{}) error {
 	_, cancel := context.WithTimeout(context.Background(), Timeout*time.Second)
 	defer cancel()
 
@@ -133,7 +133,7 @@ func (r *client) Publish(topic string, message interface{}) error {
 	return err
 }
 
-func (r *client) Subscribe(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
+func (r *client) Consume(ctx context.Context, topics []string, offsetOption int, consumerGroup string) (<-chan *Message, error) {
 	messages := make(chan *Message)
 
 	consumerGroupClient, err := newConsumerGroup(Config{Brokers: r.brokers}, consumerGroup, offsetOption)

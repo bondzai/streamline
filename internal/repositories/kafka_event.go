@@ -22,8 +22,9 @@ func NewKafkaEventRepository(client kafka.Client) KafkaEventRepository {
 		client: client,
 	}
 }
+
 func (r *kafkaEventRepository) Publish(topic string, message interface{}) error {
-	return r.client.Publish(topic, message)
+	return r.client.Produce(topic, message)
 }
 
 func (r *kafkaEventRepository) Subscribe(
@@ -32,5 +33,5 @@ func (r *kafkaEventRepository) Subscribe(
 	offsetOption int,
 	consumerGroup string,
 ) (<-chan *kafka.Message, error) {
-	return r.client.Subscribe(ctx, topic, offsetOption, consumerGroup)
+	return r.client.Consume(ctx, topic, offsetOption, consumerGroup)
 }
