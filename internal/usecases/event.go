@@ -50,18 +50,20 @@ func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel stri
 	errCh := make(chan error, 1)
 	go u.streamEvent(ctx, channel, redisCh, kafkaCh, events, errCh)
 
-	// Wait for the goroutine to report an error or complete
-	select {
-	case err := <-errCh:
-		if err != nil {
-			log.Printf("Error streaming events for channel %s: %v", channel, err)
-			return err
-		}
+	// Use a goroutine to handle errors and context cancellation
+	go func() {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				log.Printf("Error streaming events for channel %s: %v", channel, err)
+				// Handle the error, possibly by closing channels or other cleanup
+			}
 
-	case <-ctx.Done():
-		log.Printf("Context canceled while streaming events for channel %s", channel)
-		return ctx.Err()
-	}
+		case <-ctx.Done():
+			log.Printf("Context canceled while streaming events for channel %s", channel)
+			// Handle context cancellation, possibly by closing channels or other cleanup
+		}
+	}()
 
 	return nil
 }
