@@ -47,8 +47,10 @@ func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, channel stri
 		return err
 	}
 
-	errCh := make(chan error, 1)
-	go u.streamEvent(ctx, channel, redisCh, kafkaCh, eventCh, errCh)
+	if err := u.streamEvent(ctx, channel, redisCh, kafkaCh, eventCh); err != nil {
+		log.Printf("Error streaming events for channel %s: %v", channel, err)
+		return err
+	}
 
 	return nil
 }
@@ -59,53 +61,67 @@ func (u *eventUseCase) streamEvent(
 	redisCh <-chan *redis.Message,
 	kafkaCh <-chan *kafka.Message,
 	eventCh chan<- entities.Event,
-	errCh chan<- error,
-) {
-	defer func() {
-		close(errCh)
-		close(eventCh)
-	}()
+) error {
+	errCh := make(chan error, 1)
 
-	eventCh <- entities.Event{
-		Id:      channel,
-		Message: nil,
-	}
+	go func() {
+		defer func() {
+			close(errCh)
+			close(eventCh)
+		}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("Context canceled, stopping event stream for channel %s", channel)
-			errCh <- ctx.Err()
-			return
+		eventCh <- entities.Event{
+			Id:      channel,
+			Message: nil,
+		}
 
-		case msg, ok := <-redisCh:
-			if !ok {
-				log.Printf("Redis channel closed for channel %s", channel)
-				errCh <- nil
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("Context canceled, stopping event stream for channel %s", channel)
+				errCh <- ctx.Err()
 				return
-			}
 
-			event, err := u.processRedisMessage(msg, channel)
-			if err != nil {
-				log.Printf("Error processing Redis message for channel %s: %v", channel, err)
-				errCh <- err
-				return
-			}
-			eventCh <- *event
+			case msg, ok := <-redisCh:
+				if !ok {
+					log.Printf("Redis channel closed for channel %s", channel)
+					errCh <- nil
+					return
+				}
 
-		case msg, ok := <-kafkaCh:
-			if !ok {
-				log.Printf("Kafka topic closed for channel %s", channel)
-				errCh <- nil
-				return
-			}
+				event, err := u.processRedisMessage(msg, channel)
+				if err != nil {
+					log.Printf("Error processing Redis message for channel %s: %v", channel, err)
+					errCh <- err
+					return
+				}
+				eventCh <- *event
 
-			if err := u.processKafkaMessage(msg); err != nil {
-				log.Printf("Error processing Kafka message for channel %s: %v", channel, err)
-				errCh <- err
-				return
+			case msg, ok := <-kafkaCh:
+				if !ok {
+					log.Printf("Kafka topic closed for channel %s", channel)
+					errCh <- nil
+					return
+				}
+
+				if err := u.processKafkaMessage(msg); err != nil {
+					log.Printf("Error processing Kafka message for channel %s: %v", channel, err)
+					errCh <- err
+					return
+				}
 			}
 		}
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+
+	case <-ctx.Done():
+		return ctx.Err()
+
+	default:
+		return nil
 	}
 }
 
