@@ -24,7 +24,7 @@ func init() {
 
 func main() {
 	redisClient, err := redis.NewClient(redis.Config{
-		Address:  config.Env.RedisURL,
+		Address:  config.Env.RedisUrl,
 		Password: config.Env.RedisPassword,
 		DB:       config.Env.RedisDatabase,
 	})
