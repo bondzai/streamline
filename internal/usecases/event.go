@@ -32,7 +32,7 @@ const (
 type (
 	EventUseCase interface {
 		PublishEvent(channel string, message interface{}) error
-		SubscribeAndStreamEvent(ctx context.Context, chName string, eventCh chan<- entities.Event) error
+		SubscribeAndStreamEvent(ctx context.Context, chID string, eventCh chan<- entities.Event) error
 	}
 
 	eventUseCase struct {
@@ -48,21 +48,21 @@ func NewEventUseCase(redisEventRepo repositories.RedisEventRepository, kafkaEven
 	}
 }
 
-func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, chName string, eventCh chan<- entities.Event) error {
-	redisCh, err := u.redisEventRepo.Subscribe(ctx, chName)
+func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, chID string, eventCh chan<- entities.Event) error {
+	redisCh, err := u.redisEventRepo.Subscribe(ctx, chID)
 	if err != nil {
-		log.Printf(errSubscribeRedis, chName, err)
+		log.Printf(errSubscribeRedis, chID, err)
 		return err
 	}
 
-	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chName}, kafka.OffsetFromLatest, consumerGroupName)
+	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chID}, kafka.OffsetFromLatest, consumerGroupName)
 	if err != nil {
-		log.Printf(errSubscribeKafka, chName, err)
+		log.Printf(errSubscribeKafka, chID, err)
 		return err
 	}
 
-	if err := u.streamEvent(ctx, chName, redisCh, kafkaCh, eventCh); err != nil {
-		log.Printf(errStreamEvent, chName, err)
+	if err := u.streamEvent(ctx, chID, redisCh, kafkaCh, eventCh); err != nil {
+		log.Printf(errStreamEvent, chID, err)
 		return err
 	}
 
@@ -71,7 +71,7 @@ func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, chName strin
 
 func (u *eventUseCase) streamEvent(
 	ctx context.Context,
-	chName string,
+	chID string,
 	redisCh <-chan *redis.Message,
 	kafkaCh <-chan *kafka.Message,
 	eventCh chan<- entities.Event,
@@ -86,26 +86,26 @@ func (u *eventUseCase) streamEvent(
 		}()
 
 		var event entities.Event
-		event.Id = chName
+		event.Id = chID
 		eventCh <- event
 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf(errCtxDone, chName)
+				log.Printf(errCtxDone, chID)
 				errCh <- ctx.Err()
 				return
 
 			case msg, ok := <-redisCh:
 				if !ok {
-					log.Printf(errRedisClosed, chName)
+					log.Printf(errRedisClosed, chID)
 					errCh <- nil
 					return
 				}
 
 				event, err := u.processRedisMessage(msg, event)
 				if err != nil {
-					log.Printf(errUnmarshalRedis, chName, err)
+					log.Printf(errUnmarshalRedis, chID, err)
 					errCh <- err
 					return
 				}
@@ -113,13 +113,13 @@ func (u *eventUseCase) streamEvent(
 
 			case msg, ok := <-kafkaCh:
 				if !ok {
-					log.Printf(errKafkaClosed, chName)
+					log.Printf(errKafkaClosed, chID)
 					errCh <- nil
 					return
 				}
 
 				if err := u.processKafkaMessage(msg); err != nil {
-					log.Printf(errProcessKafka, chName, err)
+					log.Printf(errProcessKafka, chID, err)
 					errCh <- err
 					return
 				}
@@ -154,20 +154,20 @@ func (u *eventUseCase) processKafkaMessage(msg *kafka.Message) error {
 	return nil
 }
 
-func (u *eventUseCase) PublishEvent(chName string, message interface{}) error {
+func (u *eventUseCase) PublishEvent(chID string, message interface{}) error {
 	jsonMessage, err := json.Marshal(message)
 	if err != nil {
-		log.Printf(errMarshalMessage, chName, err)
+		log.Printf(errMarshalMessage, chID, err)
 		return err
 	}
 
-	if err := u.redisEventRepo.Publish(chName, jsonMessage); err != nil {
-		log.Printf(errPublishRedis, chName, err)
+	if err := u.redisEventRepo.Publish(chID, jsonMessage); err != nil {
+		log.Printf(errPublishRedis, chID, err)
 		return err
 	}
 
-	if err := u.kafkaEventRepo.Publish(chName, message); err != nil {
-		log.Printf(errPublishKafka, chName, err)
+	if err := u.kafkaEventRepo.Publish(chID, message); err != nil {
+		log.Printf(errPublishKafka, chID, err)
 		return err
 	}
 
