@@ -15,6 +15,7 @@ import (
 
 const (
 	consumerGroupName = "consumerGroup1"
+	kafkaOffSetOption = 0
 
 	errSubscribeRedis = "Error subscribing to Redis events for channel %s: %v"
 	errSubscribeKafka = "Error subscribing to Kafka events for channel %s: %v"
@@ -54,7 +55,7 @@ func (u *eventUseCase) SubscribeAndStreamEvent(ctx context.Context, chName strin
 		return err
 	}
 
-	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chName}, 0, consumerGroupName)
+	kafkaCh, err := u.kafkaEventRepo.Subscribe(ctx, []string{chName}, kafkaOffSetOption, consumerGroupName)
 	if err != nil {
 		log.Printf(errSubscribeKafka, chName, err)
 		return err
@@ -84,10 +85,9 @@ func (u *eventUseCase) streamEvent(
 			close(eventCh)
 		}()
 
-		eventCh <- entities.Event{
-			Id:      chName,
-			Message: nil,
-		}
+		var event entities.Event
+		event.Id = chName
+		eventCh <- event
 
 		for {
 			select {
@@ -103,7 +103,7 @@ func (u *eventUseCase) streamEvent(
 					return
 				}
 
-				event, err := u.processRedisMessage(msg, chName)
+				event, err := u.processRedisMessage(msg, event)
 				if err != nil {
 					log.Printf(errUnmarshalRedis, chName, err)
 					errCh <- err
@@ -141,12 +141,8 @@ func (u *eventUseCase) streamEvent(
 	}
 }
 
-func (u *eventUseCase) processRedisMessage(msg *redis.Message, chName string) (*entities.Event, error) {
-	var event entities.Event
-	event.Id = chName
-
+func (u *eventUseCase) processRedisMessage(msg *redis.Message, event entities.Event) (*entities.Event, error) {
 	if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-		log.Printf(errUnmarshalRedis, chName, err)
 		return nil, err
 	}
 
