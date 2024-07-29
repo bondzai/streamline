@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"streamline-sse/internal/entities"
-	"streamline-sse/internal/usecases"
-	"streamline-sse/pkg/sse"
+	"streamline/internal/entities"
+	"streamline/internal/usecases"
+	"streamline/pkg/sse"
 
 	"github.com/bondzai/gogear/toolbox"
 	"github.com/gorilla/mux"

@@ -1,4 +1,4 @@
-module streamline-sse
+module streamline
 
 go 1.22.2
 

@@ -1,6 +1,6 @@
-# Streamline SSE
+# Streamline
 
-**Streamline SSE** is a robust demo application that showcases a real-time event streaming server built using the Fiber framework and `net/http`. This demo is designed to demonstrate efficient handling of Server-Sent Events (SSE) and resource management, ensuring that resources are properly cleaned up after a client disconnects.
+**Streamline** is a robust demo application that showcases a real-time event streaming server built using the Fiber framework and `net/http`. This demo is designed to demonstrate efficient handling of Server-Sent Events (SSE) and resource management, ensuring that resources are properly cleaned up after a client disconnects.
 
 ## Key Features
 

@@ -3,7 +3,7 @@ package repositories
 import (
 	"context"
 
-	"streamline-sse/pkg/kafka"
+	"streamline/pkg/kafka"
 )
 
 type (

@@ -4,12 +4,12 @@ import (
 	"log"
 	"net/http"
 
-	"streamline-sse/config"
-	"streamline-sse/internal/handlers"
-	"streamline-sse/internal/repositories"
-	"streamline-sse/internal/usecases"
-	"streamline-sse/pkg/kafka"
-	"streamline-sse/pkg/redis"
+	"streamline/config"
+	"streamline/internal/handlers"
+	"streamline/internal/repositories"
+	"streamline/internal/usecases"
+	"streamline/pkg/kafka"
+	"streamline/pkg/redis"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gorilla/mux"
